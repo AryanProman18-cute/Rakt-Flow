@@ -12,14 +12,32 @@ jobs:
 
     steps:
       - name: Download repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
-      - name: Extract RaktFlow source
+      - name: Find and extract ZIP
         run: |
-          unzip -o RaktFlow_v3_Portable.zip -d .
-          rm RaktFlow_v3_Portable.zip
+          ZIP_FILE="$(find . -maxdepth 1 -type f -iname '*.zip' | head -n 1)"
+
+          if [ -z "$ZIP_FILE" ]; then
+            echo "No ZIP file was found in the repository root."
+            ls -la
+            exit 1
+          fi
+
+          echo "Extracting: $ZIP_FILE"
+          unzip -o "$ZIP_FILE" -d .
+          rm "$ZIP_FILE"
+
+      - name: Save extracted files
+        run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
+
+          if git diff --cached --quiet; then
+            echo "Nothing new to commit."
+            exit 0
+          fi
+
           git commit -m "Unpack RaktFlow V3 source"
           git push
