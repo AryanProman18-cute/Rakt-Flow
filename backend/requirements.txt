@@ -1,0 +1,14 @@
+fastapi==0.116.1
+uvicorn[standard]==0.35.0
+SQLAlchemy[asyncio]==2.0.43
+asyncpg==0.30.0
+geoalchemy2==0.18.0
+pydantic-settings==2.10.1
+firebase-admin==7.1.0
+python-multipart==0.0.20
+PyJWT[crypto]==2.10.1
+httpx==0.28.1
+orjson==3.11.2
+structlog==25.4.0
+email-validator==2.2.0
+cryptography==45.0.6

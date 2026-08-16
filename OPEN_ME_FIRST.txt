@@ -1,0 +1,5 @@
+RaktFlow v3 portable source archive
+
+This is a standard ZIP with repository files directly at the archive root.
+For Vercel, leave Root Directory blank.
+Read docs/PRODUCTION_SETUP.md and apply migrations 001, 002, and 003 in order.

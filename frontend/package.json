@@ -1,0 +1,30 @@
+{
+  "name": "raktflow-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "lint": "eslint src",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@zxing/browser": "^0.1.5",
+    "firebase": "^12.17.1",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.16.0",
+    "vite": "^7.1.1",
+    "vite-plugin-pwa": "^1.0.3",
+    "vitest": "^3.2.4",
+    "workbox-background-sync": "^7.3.0",
+    "workbox-core": "^7.3.0",
+    "workbox-expiration": "^7.3.0",
+    "workbox-precaching": "^7.3.0",
+    "workbox-routing": "^7.3.0",
+    "workbox-strategies": "^7.3.0"
+  }
+}

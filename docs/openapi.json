@@ -1,0 +1,5527 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "RaktFlow API",
+    "description": "Verified blood donation and emergency logistics orchestration API.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Health",
+        "operationId": "health_api_v1_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Keep Warm",
+        "operationId": "keep_warm_api_v1_health_head",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
+    "/api/v1/ping": {
+      "head": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Keep Warm",
+        "operationId": "keep_warm_api_v1_ping_head",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
+    "/api/v1/public/requests": {
+      "get": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Verified Public Requests",
+        "operationId": "verified_public_requests_api_v1_public_requests_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response Verified Public Requests Api V1 Public Requests Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/public/centres": {
+      "get": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Verified Public Centres",
+        "operationId": "verified_public_centres_api_v1_public_centres_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response Verified Public Centres Api V1 Public Centres Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/public/stats": {
+      "get": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Public Stats",
+        "operationId": "public_stats_api_v1_public_stats_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "type": "object",
+                  "title": "Response Public Stats Api V1 Public Stats Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/bootstrap": {
+      "post": {
+        "tags": [
+          "accounts and donor profile"
+        ],
+        "summary": "Bootstrap Account",
+        "operationId": "bootstrap_account_api_v1_auth_bootstrap_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BootstrapResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/donors/me/profile": {
+      "get": {
+        "tags": [
+          "accounts and donor profile"
+        ],
+        "summary": "Get Donor Profile",
+        "operationId": "get_donor_profile_api_v1_donors_me_profile_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DonorProfileView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "accounts and donor profile"
+        ],
+        "summary": "Upsert Donor Profile",
+        "operationId": "upsert_donor_profile_api_v1_donors_me_profile_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DonorProfileUpsert"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DonorProfileView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/donors/me/screenings": {
+      "post": {
+        "tags": [
+          "accounts and donor profile"
+        ],
+        "summary": "Submit Screening",
+        "operationId": "submit_screening_api_v1_donors_me_screenings_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScreeningSubmission"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreeningResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users": {
+      "get": {
+        "tags": [
+          "administration"
+        ],
+        "summary": "List Users",
+        "operationId": "list_users_api_v1_admin_users_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response List Users Api V1 Admin Users Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/invitations": {
+      "get": {
+        "tags": [
+          "administration"
+        ],
+        "summary": "List Invitations",
+        "operationId": "list_invitations_api_v1_admin_invitations_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response List Invitations Api V1 Admin Invitations Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "administration"
+        ],
+        "summary": "Create Invitation",
+        "operationId": "create_invitation_api_v1_admin_invitations_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Create Invitation Api V1 Admin Invitations Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users/{user_id}/roles": {
+      "put": {
+        "tags": [
+          "administration"
+        ],
+        "summary": "Update User Roles",
+        "operationId": "update_user_roles_api_v1_admin_users__user_id__roles_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoleUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Update User Roles Api V1 Admin Users  User Id  Roles Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users/{user_id}/status": {
+      "patch": {
+        "tags": [
+          "administration"
+        ],
+        "summary": "Update User Status",
+        "operationId": "update_user_status_api_v1_admin_users__user_id__status_patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "active",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "boolean",
+              "title": "Active"
+            }
+          },
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Update User Status Api V1 Admin Users  User Id  Status Patch"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hospitals/applications": {
+      "post": {
+        "tags": [
+          "hospitals"
+        ],
+        "summary": "Apply For Hospital Account",
+        "operationId": "apply_for_hospital_account_api_v1_hospitals_applications_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HospitalApplication"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Apply For Hospital Account Api V1 Hospitals Applications Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "hospitals"
+        ],
+        "summary": "List Hospital Applications",
+        "operationId": "list_hospital_applications_api_v1_hospitals_applications_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response List Hospital Applications Api V1 Hospitals Applications Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hospitals/me": {
+      "get": {
+        "tags": [
+          "hospitals"
+        ],
+        "summary": "Get My Hospital",
+        "operationId": "get_my_hospital_api_v1_hospitals_me_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get My Hospital Api V1 Hospitals Me Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hospitals/{hospital_id}/verification": {
+      "post": {
+        "tags": [
+          "hospitals"
+        ],
+        "summary": "Decide Hospital Application",
+        "operationId": "decide_hospital_application_api_v1_hospitals__hospital_id__verification_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "hospital_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Hospital Id"
+            }
+          },
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HospitalVerification"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Decide Hospital Application Api V1 Hospitals  Hospital Id  Verification Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hospitals/inventory/me": {
+      "get": {
+        "tags": [
+          "hospitals"
+        ],
+        "summary": "List My Inventory",
+        "operationId": "list_my_inventory_api_v1_hospitals_inventory_me_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response List My Inventory Api V1 Hospitals Inventory Me Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hospitals/inventory/events": {
+      "post": {
+        "tags": [
+          "hospitals"
+        ],
+        "summary": "Record Inventory Event",
+        "operationId": "record_inventory_event_api_v1_hospitals_inventory_events_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InventoryMutation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Record Inventory Event Api V1 Hospitals Inventory Events Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "hospitals"
+        ],
+        "summary": "List Inventory Events",
+        "operationId": "list_inventory_events_api_v1_hospitals_inventory_events_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response List Inventory Events Api V1 Hospitals Inventory Events Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/donors/me/pass": {
+      "get": {
+        "tags": [
+          "donors"
+        ],
+        "summary": "Donor Pass",
+        "operationId": "donor_pass_api_v1_donors_me_pass_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DonorPassResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/donors/me/donations": {
+      "get": {
+        "tags": [
+          "donors"
+        ],
+        "summary": "Donation History",
+        "operationId": "donation_history_api_v1_donors_me_donations_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response Donation History Api V1 Donors Me Donations Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/donors/me/alerts": {
+      "get": {
+        "tags": [
+          "donors"
+        ],
+        "summary": "My Verified Alerts",
+        "operationId": "my_verified_alerts_api_v1_donors_me_alerts_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response My Verified Alerts Api V1 Donors Me Alerts Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/donors/me/alerts/{alert_id}/response": {
+      "post": {
+        "tags": [
+          "donors"
+        ],
+        "summary": "Respond To Alert",
+        "operationId": "respond_to_alert_api_v1_donors_me_alerts__alert_id__response_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "alert_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Alert Id"
+            }
+          },
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlertResponse"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Respond To Alert Api V1 Donors Me Alerts  Alert Id  Response Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/drives/public": {
+      "get": {
+        "tags": [
+          "drives"
+        ],
+        "summary": "Public Drives",
+        "operationId": "public_drives_api_v1_drives_public_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response Public Drives Api V1 Drives Public Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/drives/mine": {
+      "get": {
+        "tags": [
+          "drives"
+        ],
+        "summary": "My Drives",
+        "operationId": "my_drives_api_v1_drives_mine_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response My Drives Api V1 Drives Mine Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/drives/{drive_id}/status": {
+      "patch": {
+        "tags": [
+          "drives"
+        ],
+        "summary": "Update Drive Status",
+        "operationId": "update_drive_status_api_v1_drives__drive_id__status_patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "drive_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Drive Id"
+            }
+          },
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DriveStatusUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Update Drive Status Api V1 Drives  Drive Id  Status Patch"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/drives": {
+      "post": {
+        "tags": [
+          "drives"
+        ],
+        "summary": "Create Drive",
+        "operationId": "create_drive_api_v1_drives_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DriveCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Create Drive Api V1 Drives Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/drives/{drive_id}": {
+      "patch": {
+        "tags": [
+          "drives"
+        ],
+        "summary": "Edit Drive",
+        "operationId": "edit_drive_api_v1_drives__drive_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "drive_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Drive Id"
+            }
+          },
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DriveUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Edit Drive Api V1 Drives  Drive Id  Patch"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/drives/{drive_id}/analytics": {
+      "get": {
+        "tags": [
+          "drives"
+        ],
+        "summary": "Drive Analytics",
+        "operationId": "drive_analytics_api_v1_drives__drive_id__analytics_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "drive_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Drive Id"
+            }
+          },
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Drive Analytics Api V1 Drives  Drive Id  Analytics Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/drives/proposals": {
+      "post": {
+        "tags": [
+          "drives"
+        ],
+        "summary": "Create Proposal",
+        "operationId": "create_proposal_api_v1_drives_proposals_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DriveProposalCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Create Proposal Api V1 Drives Proposals Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/drives/proposals/mine": {
+      "get": {
+        "tags": [
+          "drives"
+        ],
+        "summary": "My Proposals",
+        "operationId": "my_proposals_api_v1_drives_proposals_mine_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response My Proposals Api V1 Drives Proposals Mine Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/drives/proposals/{proposal_id}/decision": {
+      "post": {
+        "tags": [
+          "drives"
+        ],
+        "summary": "Decide Proposal",
+        "operationId": "decide_proposal_api_v1_drives_proposals__proposal_id__decision_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Proposal Id"
+            }
+          },
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposalDecision"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Decide Proposal Api V1 Drives Proposals  Proposal Id  Decision Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/checkins": {
+      "post": {
+        "tags": [
+          "drive intake"
+        ],
+        "summary": "Check In",
+        "operationId": "check_in_api_v1_checkins_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckInCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/checkins/batch": {
+      "post": {
+        "tags": [
+          "drive intake"
+        ],
+        "summary": "Replay Batch",
+        "operationId": "replay_batch_api_v1_checkins_batch_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckInBatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/intake/scan": {
+      "post": {
+        "tags": [
+          "organizer intake"
+        ],
+        "summary": "Scan Donor Pass",
+        "operationId": "scan_donor_pass_api_v1_intake_scan_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScanPassRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntakeDonorView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/intake/manual": {
+      "post": {
+        "tags": [
+          "organizer intake"
+        ],
+        "summary": "Manual Checkin",
+        "operationId": "manual_checkin_api_v1_intake_manual_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManualCheckInRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntakeDonorView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/intake/{checkin_id}/assessment": {
+      "post": {
+        "tags": [
+          "organizer intake"
+        ],
+        "summary": "Record Clinical Assessment",
+        "operationId": "record_clinical_assessment_api_v1_intake__checkin_id__assessment_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "checkin_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Checkin Id"
+            }
+          },
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClinicalAssessmentCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Record Clinical Assessment Api V1 Intake  Checkin Id  Assessment Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/intake/{checkin_id}/donation": {
+      "post": {
+        "tags": [
+          "organizer intake"
+        ],
+        "summary": "Record Donation",
+        "operationId": "record_donation_api_v1_intake__checkin_id__donation_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "checkin_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Checkin Id"
+            }
+          },
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DonationRecordCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Record Donation Api V1 Intake  Checkin Id  Donation Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/requests/documents": {
+      "post": {
+        "tags": [
+          "blood requests"
+        ],
+        "summary": "Upload Requisition Document",
+        "operationId": "upload_requisition_document_api_v1_requests_documents_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_requisition_document_api_v1_requests_documents_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Upload Requisition Document Api V1 Requests Documents Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/requests": {
+      "post": {
+        "tags": [
+          "blood requests"
+        ],
+        "summary": "Create Request",
+        "operationId": "create_request_api_v1_requests_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Create Request Api V1 Requests Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/requests/mine": {
+      "get": {
+        "tags": [
+          "blood requests"
+        ],
+        "summary": "List My Requests",
+        "operationId": "list_my_requests_api_v1_requests_mine_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response List My Requests Api V1 Requests Mine Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/requests/{request_id}/verify": {
+      "post": {
+        "tags": [
+          "blood requests"
+        ],
+        "summary": "Verify Request",
+        "operationId": "verify_request_api_v1_requests__request_id__verify_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Request Id"
+            }
+          },
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerificationDecision"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Verify Request Api V1 Requests  Request Id  Verify Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/requests/{request_id}/resolve": {
+      "post": {
+        "tags": [
+          "blood requests"
+        ],
+        "summary": "Resolve Request",
+        "operationId": "resolve_request_api_v1_requests__request_id__resolve_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Request Id"
+            }
+          },
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Resolve Request Api V1 Requests  Request Id  Resolve Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/logistics/rare/dispatch": {
+      "post": {
+        "tags": [
+          "specialized logistics"
+        ],
+        "summary": "Rare Dispatch",
+        "operationId": "rare_dispatch_api_v1_logistics_rare_dispatch_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RareDispatchCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DispatchResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/logistics/rare/{request_id}/expand": {
+      "post": {
+        "tags": [
+          "specialized logistics"
+        ],
+        "summary": "Expand Rare Dispatch",
+        "operationId": "expand_rare_dispatch_api_v1_logistics_rare__request_id__expand_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Request Id"
+            }
+          },
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DispatchResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/logistics/pph": {
+      "post": {
+        "tags": [
+          "specialized logistics"
+        ],
+        "summary": "Activate Pph",
+        "operationId": "activate_pph_api_v1_logistics_pph_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PPHDispatchCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Activate Pph Api V1 Logistics Pph Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/logistics/platelets/schedule": {
+      "post": {
+        "tags": [
+          "specialized logistics"
+        ],
+        "summary": "Platelet Schedule",
+        "operationId": "platelet_schedule_api_v1_logistics_platelets_schedule_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlateletScheduleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Platelet Schedule Api V1 Logistics Platelets Schedule Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/config": {
+      "get": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Notification Config",
+        "operationId": "notification_config_api_v1_notifications_config_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Notification Config Api V1 Notifications Config Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/subscriptions": {
+      "post": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Save Push Subscription",
+        "operationId": "save_push_subscription_api_v1_notifications_subscriptions_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user-agent",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "User-Agent"
+            }
+          },
+          {
+            "name": "x-dev-uid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Uid"
+            }
+          },
+          {
+            "name": "x-dev-role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushSubscriptionCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Save Push Subscription Api V1 Notifications Subscriptions Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AlertResponse": {
+        "properties": {
+          "response": {
+            "type": "string",
+            "title": "Response"
+          }
+        },
+        "type": "object",
+        "required": [
+          "response"
+        ],
+        "title": "AlertResponse"
+      },
+      "BatchResult": {
+        "properties": {
+          "accepted": {
+            "type": "integer",
+            "title": "Accepted"
+          },
+          "duplicates": {
+            "type": "integer",
+            "title": "Duplicates"
+          }
+        },
+        "type": "object",
+        "required": [
+          "accepted",
+          "duplicates"
+        ],
+        "title": "BatchResult"
+      },
+      "Body_upload_requisition_document_api_v1_requests_documents_post": {
+        "properties": {
+          "upload": {
+            "type": "string",
+            "format": "binary",
+            "title": "Upload"
+          }
+        },
+        "type": "object",
+        "required": [
+          "upload"
+        ],
+        "title": "Body_upload_requisition_document_api_v1_requests_documents_post"
+      },
+      "BootstrapResponse": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Roles"
+          },
+          "needs_profile": {
+            "type": "boolean",
+            "title": "Needs Profile"
+          },
+          "token_refresh_required": {
+            "type": "boolean",
+            "title": "Token Refresh Required",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "email",
+          "roles",
+          "needs_profile"
+        ],
+        "title": "BootstrapResponse"
+      },
+      "CheckInBatch": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CheckInCreate"
+            },
+            "type": "array",
+            "maxItems": 250,
+            "minItems": 1,
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "CheckInBatch"
+      },
+      "CheckInCreate": {
+        "properties": {
+          "idempotency_key": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 16,
+            "title": "Idempotency Key"
+          },
+          "drive_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Drive Id"
+          },
+          "donor_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Donor Id"
+          },
+          "scanned_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Scanned At"
+          },
+          "clearance_status": {
+            "type": "string",
+            "const": "PENDING_REVIEW",
+            "title": "Clearance Status",
+            "default": "PENDING_REVIEW"
+          }
+        },
+        "type": "object",
+        "required": [
+          "idempotency_key",
+          "drive_id",
+          "donor_id",
+          "scanned_at"
+        ],
+        "title": "CheckInCreate"
+      },
+      "ClinicalAssessmentCreate": {
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "CLEARED",
+              "DEFERRED"
+            ],
+            "title": "Decision"
+          },
+          "reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Reason Codes"
+          },
+          "hemoglobin_g_dl": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 25.0,
+                "minimum": 2.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hemoglobin G Dl"
+          },
+          "systolic_bp": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 260.0,
+                "minimum": 50.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Systolic Bp"
+          },
+          "diastolic_bp": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 180.0,
+                "minimum": 30.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Diastolic Bp"
+          },
+          "pulse_bpm": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 220.0,
+                "minimum": 30.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pulse Bpm"
+          }
+        },
+        "type": "object",
+        "required": [
+          "decision"
+        ],
+        "title": "ClinicalAssessmentCreate"
+      },
+      "DispatchResult": {
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Request Id"
+          },
+          "tier": {
+            "type": "integer",
+            "title": "Tier"
+          },
+          "radius_km": {
+            "type": "integer",
+            "title": "Radius Km"
+          },
+          "donors_contacted": {
+            "type": "integer",
+            "title": "Donors Contacted"
+          },
+          "response_deadline": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Response Deadline"
+          }
+        },
+        "type": "object",
+        "required": [
+          "request_id",
+          "tier",
+          "radius_km",
+          "donors_contacted",
+          "response_deadline"
+        ],
+        "title": "DispatchResult"
+      },
+      "DonationRecordCreate": {
+        "properties": {
+          "component_type": {
+            "type": "string",
+            "enum": [
+              "WHOLE_BLOOD",
+              "PRBC",
+              "SDP",
+              "FFP"
+            ],
+            "title": "Component Type"
+          },
+          "volume_ml": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1000.0,
+                "minimum": 50.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume Ml"
+          },
+          "blood_type_at_collection": {
+            "type": "string",
+            "enum": [
+              "A+",
+              "A-",
+              "B+",
+              "B-",
+              "AB+",
+              "AB-",
+              "O+",
+              "O-",
+              "BOMBAY"
+            ],
+            "title": "Blood Type At Collection"
+          },
+          "unit_reference": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 6,
+            "title": "Unit Reference"
+          },
+          "collected_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Collected At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "component_type",
+          "blood_type_at_collection",
+          "unit_reference",
+          "collected_at"
+        ],
+        "title": "DonationRecordCreate"
+      },
+      "DonorPassResponse": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          },
+          "rotating_code": {
+            "type": "string",
+            "title": "Rotating Code"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "offline_valid_until": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Offline Valid Until"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token",
+          "rotating_code",
+          "expires_at",
+          "offline_valid_until"
+        ],
+        "title": "DonorPassResponse"
+      },
+      "DonorProfileUpsert": {
+        "properties": {
+          "full_name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 2,
+            "title": "Full Name"
+          },
+          "date_of_birth": {
+            "type": "string",
+            "format": "date",
+            "title": "Date Of Birth"
+          },
+          "phone": {
+            "type": "string",
+            "maxLength": 24,
+            "minLength": 10,
+            "title": "Phone"
+          },
+          "city": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 2,
+            "title": "City"
+          },
+          "blood_type": {
+            "type": "string",
+            "enum": [
+              "UNKNOWN",
+              "A+",
+              "A-",
+              "B+",
+              "B-",
+              "AB+",
+              "AB-",
+              "O+",
+              "O-",
+              "BOMBAY"
+            ],
+            "title": "Blood Type",
+            "default": "UNKNOWN"
+          },
+          "consent_to_process": {
+            "type": "boolean",
+            "title": "Consent To Process"
+          },
+          "emergency_notifications": {
+            "type": "boolean",
+            "title": "Emergency Notifications",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "full_name",
+          "date_of_birth",
+          "phone",
+          "city",
+          "consent_to_process"
+        ],
+        "title": "DonorProfileUpsert"
+      },
+      "DonorProfileView": {
+        "properties": {
+          "reference_code": {
+            "type": "string",
+            "title": "Reference Code"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "age": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age"
+          },
+          "phone_masked": {
+            "type": "string",
+            "title": "Phone Masked"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "blood_type": {
+            "type": "string",
+            "title": "Blood Type"
+          },
+          "profile_status": {
+            "type": "string",
+            "title": "Profile Status"
+          },
+          "email_verified": {
+            "type": "boolean",
+            "title": "Email Verified",
+            "default": true
+          },
+          "identity_verified": {
+            "type": "boolean",
+            "title": "Identity Verified"
+          },
+          "latest_screening_outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Screening Outcome"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reference_code",
+          "full_name",
+          "age",
+          "phone_masked",
+          "city",
+          "blood_type",
+          "profile_status",
+          "identity_verified",
+          "latest_screening_outcome"
+        ],
+        "title": "DonorProfileView"
+      },
+      "DriveCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 150,
+            "minLength": 3,
+            "title": "Name"
+          },
+          "venue_name": {
+            "type": "string",
+            "maxLength": 150,
+            "minLength": 2,
+            "title": "Venue Name"
+          },
+          "address": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 5,
+            "title": "Address"
+          },
+          "starts_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Starts At"
+          },
+          "ends_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ends At"
+          },
+          "target_units": {
+            "type": "integer",
+            "maximum": 1000.0,
+            "minimum": 1.0,
+            "title": "Target Units"
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 90.0,
+                "minimum": -90.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitude"
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 180.0,
+                "minimum": -180.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitude"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "venue_name",
+          "address",
+          "starts_at",
+          "ends_at",
+          "target_units"
+        ],
+        "title": "DriveCreate"
+      },
+      "DriveProposalCreate": {
+        "properties": {
+          "host_email": {
+            "type": "string",
+            "format": "email",
+            "title": "Host Email"
+          },
+          "proposed_name": {
+            "type": "string",
+            "maxLength": 150,
+            "minLength": 3,
+            "title": "Proposed Name"
+          },
+          "venue_name": {
+            "type": "string",
+            "maxLength": 150,
+            "minLength": 2,
+            "title": "Venue Name"
+          },
+          "address": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 5,
+            "title": "Address"
+          },
+          "starts_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Starts At"
+          },
+          "ends_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ends At"
+          },
+          "target_units": {
+            "type": "integer",
+            "maximum": 1000.0,
+            "minimum": 1.0,
+            "title": "Target Units"
+          },
+          "power_available": {
+            "type": "boolean",
+            "title": "Power Available"
+          },
+          "wifi_available": {
+            "type": "boolean",
+            "title": "Wifi Available"
+          },
+          "recovery_seats": {
+            "type": "integer",
+            "maximum": 500.0,
+            "minimum": 1.0,
+            "title": "Recovery Seats"
+          },
+          "parking_available": {
+            "type": "boolean",
+            "title": "Parking Available"
+          },
+          "privacy_partitions": {
+            "type": "boolean",
+            "title": "Privacy Partitions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "host_email",
+          "proposed_name",
+          "venue_name",
+          "address",
+          "starts_at",
+          "ends_at",
+          "target_units",
+          "power_available",
+          "wifi_available",
+          "recovery_seats",
+          "parking_available",
+          "privacy_partitions"
+        ],
+        "title": "DriveProposalCreate"
+      },
+      "DriveStatusUpdate": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "PLANNED",
+              "APPROVED",
+              "ACTIVE",
+              "COMPLETED",
+              "CANCELLED"
+            ],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "DriveStatusUpdate"
+      },
+      "DriveUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 150,
+                "minLength": 3
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "venue_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 150,
+                "minLength": 2
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Venue Name"
+          },
+          "address": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500,
+                "minLength": 5
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "starts_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starts At"
+          },
+          "ends_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends At"
+          },
+          "target_units": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1000.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Units"
+          }
+        },
+        "type": "object",
+        "title": "DriveUpdate"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok",
+            "title": "Status",
+            "default": "ok"
+          },
+          "service": {
+            "type": "string",
+            "title": "Service",
+            "default": "raktflow-api"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "default": "0.1.0"
+          }
+        },
+        "type": "object",
+        "title": "HealthResponse"
+      },
+      "HospitalApplication": {
+        "properties": {
+          "facility_name": {
+            "type": "string",
+            "maxLength": 180,
+            "minLength": 3,
+            "title": "Facility Name"
+          },
+          "registration_number": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 3,
+            "title": "Registration Number"
+          },
+          "institutional_email": {
+            "type": "string",
+            "format": "email",
+            "title": "Institutional Email"
+          },
+          "phone": {
+            "type": "string",
+            "maxLength": 24,
+            "minLength": 10,
+            "title": "Phone"
+          },
+          "address": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 8,
+            "title": "Address"
+          },
+          "city": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 2,
+            "title": "City"
+          },
+          "state": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 2,
+            "title": "State"
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 90.0,
+                "minimum": -90.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitude"
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 180.0,
+                "minimum": -180.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitude"
+          }
+        },
+        "type": "object",
+        "required": [
+          "facility_name",
+          "registration_number",
+          "institutional_email",
+          "phone",
+          "address",
+          "city",
+          "state"
+        ],
+        "title": "HospitalApplication"
+      },
+      "HospitalVerification": {
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "VERIFIED",
+              "REJECTED",
+              "SUSPENDED"
+            ],
+            "title": "Decision"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 1000,
+            "title": "Note",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "decision"
+        ],
+        "title": "HospitalVerification"
+      },
+      "IntakeDonorView": {
+        "properties": {
+          "checkin_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Checkin Id"
+          },
+          "donor_reference": {
+            "type": "string",
+            "title": "Donor Reference"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "age": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age"
+          },
+          "blood_type": {
+            "type": "string",
+            "title": "Blood Type"
+          },
+          "latest_screening_outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Screening Outcome"
+          },
+          "identity_verified": {
+            "type": "boolean",
+            "title": "Identity Verified"
+          },
+          "last_donation_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Donation Date"
+          },
+          "clearance_status": {
+            "type": "string",
+            "title": "Clearance Status"
+          },
+          "checkin_method": {
+            "type": "string",
+            "enum": [
+              "QR",
+              "MANUAL"
+            ],
+            "title": "Checkin Method"
+          }
+        },
+        "type": "object",
+        "required": [
+          "checkin_id",
+          "donor_reference",
+          "display_name",
+          "age",
+          "blood_type",
+          "latest_screening_outcome",
+          "identity_verified",
+          "last_donation_date",
+          "clearance_status",
+          "checkin_method"
+        ],
+        "title": "IntakeDonorView"
+      },
+      "InventoryMutation": {
+        "properties": {
+          "blood_type": {
+            "type": "string",
+            "enum": [
+              "A+",
+              "A-",
+              "B+",
+              "B-",
+              "AB+",
+              "AB-",
+              "O+",
+              "O-",
+              "BOMBAY"
+            ],
+            "title": "Blood Type"
+          },
+          "phenotype_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phenotype Code"
+          },
+          "component_type": {
+            "type": "string",
+            "enum": [
+              "PRBC",
+              "SDP",
+              "RDP",
+              "FFP",
+              "CRYOPRECIPITATE",
+              "WHOLE_BLOOD"
+            ],
+            "title": "Component Type"
+          },
+          "event_type": {
+            "type": "string",
+            "enum": [
+              "RECEIPT",
+              "ISSUE",
+              "ADJUSTMENT",
+              "DISCARD"
+            ],
+            "title": "Event Type"
+          },
+          "adjustment_direction": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "INCREASE",
+                  "DECREASE"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adjustment Direction"
+          },
+          "units": {
+            "type": "integer",
+            "maximum": 1000.0,
+            "minimum": 1.0,
+            "title": "Units"
+          },
+          "reference": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 3,
+            "title": "Reference"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 1000,
+            "title": "Reason",
+            "default": ""
+          },
+          "minimum_level": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minimum Level"
+          }
+        },
+        "type": "object",
+        "required": [
+          "blood_type",
+          "component_type",
+          "event_type",
+          "units",
+          "reference"
+        ],
+        "title": "InventoryMutation"
+      },
+      "InvitationCreate": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 5,
+            "minItems": 1,
+            "title": "Roles"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "roles"
+        ],
+        "title": "InvitationCreate"
+      },
+      "ManualCheckInRequest": {
+        "properties": {
+          "drive_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Drive Id"
+          },
+          "donor_reference": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 6,
+            "title": "Donor Reference"
+          },
+          "idempotency_key": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 16,
+            "title": "Idempotency Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "drive_id",
+          "donor_reference",
+          "idempotency_key"
+        ],
+        "title": "ManualCheckInRequest"
+      },
+      "PPHDispatchCreate": {
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Request Id"
+          },
+          "ward": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 2,
+            "title": "Ward"
+          },
+          "clinical_owner_registration": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 3,
+            "title": "Clinical Owner Registration"
+          },
+          "authorization_confirmed": {
+            "type": "boolean",
+            "title": "Authorization Confirmed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "request_id",
+          "ward",
+          "clinical_owner_registration",
+          "authorization_confirmed"
+        ],
+        "title": "PPHDispatchCreate"
+      },
+      "PlateletDonorCandidate": {
+        "properties": {
+          "donor_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Donor Id"
+          },
+          "last_apheresis_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Apheresis At"
+          },
+          "platelet_count": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1000000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platelet Count"
+          },
+          "vein_access_suitable": {
+            "type": "boolean",
+            "title": "Vein Access Suitable"
+          },
+          "available_days": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Available Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "donor_id",
+          "vein_access_suitable"
+        ],
+        "title": "PlateletDonorCandidate"
+      },
+      "PlateletScheduleRequest": {
+        "properties": {
+          "starts_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Starts At"
+          },
+          "donors": {
+            "items": {
+              "$ref": "#/components/schemas/PlateletDonorCandidate"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "title": "Donors"
+          }
+        },
+        "type": "object",
+        "required": [
+          "starts_at",
+          "donors"
+        ],
+        "title": "PlateletScheduleRequest"
+      },
+      "ProposalDecision": {
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "APPROVED",
+              "CHANGES_REQUESTED",
+              "REJECTED"
+            ],
+            "title": "Decision"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 1000,
+            "title": "Note",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "decision"
+        ],
+        "title": "ProposalDecision"
+      },
+      "PushSubscriptionCreate": {
+        "properties": {
+          "endpoint": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 20,
+            "title": "Endpoint"
+          },
+          "expirationTime": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expirationtime"
+          },
+          "keys": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Keys"
+          }
+        },
+        "type": "object",
+        "required": [
+          "endpoint",
+          "keys"
+        ],
+        "title": "PushSubscriptionCreate"
+      },
+      "RareDispatchCreate": {
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Request Id"
+          },
+          "initial_radius_km": {
+            "type": "integer",
+            "const": 15,
+            "title": "Initial Radius Km",
+            "default": 15
+          },
+          "cohort_size": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 3.0,
+            "title": "Cohort Size",
+            "default": 5
+          }
+        },
+        "type": "object",
+        "required": [
+          "request_id"
+        ],
+        "title": "RareDispatchCreate"
+      },
+      "RequestCreate": {
+        "properties": {
+          "patient_reference": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 3,
+            "title": "Patient Reference"
+          },
+          "blood_type": {
+            "type": "string",
+            "pattern": "^(A|B|AB|O)[+-]$|^BOMBAY$",
+            "title": "Blood Type"
+          },
+          "phenotype_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "BOMBAY_OH",
+                  "PARA_BOMBAY",
+                  "RH_NULL",
+                  "D_VARIANT",
+                  "KELL_NEGATIVE",
+                  "DUFFY_NULL",
+                  "KIDD_NULL",
+                  "MNS_RARE",
+                  "VEL_NEGATIVE",
+                  "OTHER_CONFIRMED"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phenotype Code"
+          },
+          "component_type": {
+            "type": "string",
+            "enum": [
+              "PRBC",
+              "SDP",
+              "RDP",
+              "FFP",
+              "CRYOPRECIPITATE",
+              "WHOLE_BLOOD"
+            ],
+            "title": "Component Type"
+          },
+          "units_needed": {
+            "type": "integer",
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Units Needed"
+          },
+          "urgency": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "CRITICAL_PPH",
+              "RARE_STANDBY"
+            ],
+            "title": "Urgency"
+          },
+          "expires_in_hours": {
+            "type": "integer",
+            "maximum": 12.0,
+            "minimum": 6.0,
+            "title": "Expires In Hours",
+            "default": 8
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 90.0,
+                "minimum": -90.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitude"
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 180.0,
+                "minimum": -180.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitude"
+          },
+          "document_object_key": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 8,
+            "title": "Document Object Key"
+          },
+          "document_sha256_hex": {
+            "type": "string",
+            "pattern": "^[a-fA-F0-9]{64}$",
+            "title": "Document Sha256 Hex"
+          }
+        },
+        "type": "object",
+        "required": [
+          "patient_reference",
+          "blood_type",
+          "component_type",
+          "units_needed",
+          "urgency",
+          "document_object_key",
+          "document_sha256_hex"
+        ],
+        "title": "RequestCreate"
+      },
+      "ResolveRequest": {
+        "properties": {
+          "receiving_event_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 8,
+            "title": "Receiving Event Id"
+          },
+          "units_received": {
+            "type": "integer",
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Units Received"
+          }
+        },
+        "type": "object",
+        "required": [
+          "receiving_event_id",
+          "units_received"
+        ],
+        "title": "ResolveRequest"
+      },
+      "RoleUpdate": {
+        "properties": {
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 5,
+            "minItems": 1,
+            "title": "Roles"
+          }
+        },
+        "type": "object",
+        "required": [
+          "roles"
+        ],
+        "title": "RoleUpdate"
+      },
+      "ScanPassRequest": {
+        "properties": {
+          "drive_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Drive Id"
+          },
+          "pass_token": {
+            "type": "string",
+            "maxLength": 4096,
+            "minLength": 40,
+            "title": "Pass Token"
+          },
+          "idempotency_key": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 16,
+            "title": "Idempotency Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "drive_id",
+          "pass_token",
+          "idempotency_key"
+        ],
+        "title": "ScanPassRequest"
+      },
+      "ScreeningResult": {
+        "properties": {
+          "screening_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Screening Id"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "PROCEED_TO_CLINICAL",
+              "CLINICAL_REVIEW",
+              "TEMPORARY_DEFERRAL_SUGGESTED"
+            ],
+            "title": "Outcome"
+          },
+          "flags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Flags"
+          },
+          "valid_until": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Valid Until"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "screening_id",
+          "outcome",
+          "flags",
+          "valid_until",
+          "message"
+        ],
+        "title": "ScreeningResult"
+      },
+      "ScreeningSubmission": {
+        "properties": {
+          "questionnaire_version": {
+            "type": "string",
+            "const": "IN-PRECHECK-2026-01",
+            "title": "Questionnaire Version",
+            "default": "IN-PRECHECK-2026-01"
+          },
+          "weight_kg": {
+            "type": "number",
+            "maximum": 250.0,
+            "minimum": 25.0,
+            "title": "Weight Kg"
+          },
+          "feeling_well_today": {
+            "type": "boolean",
+            "title": "Feeling Well Today"
+          },
+          "fever_infection_or_antibiotics": {
+            "type": "boolean",
+            "title": "Fever Infection Or Antibiotics"
+          },
+          "medication_requires_review": {
+            "type": "boolean",
+            "title": "Medication Requires Review"
+          },
+          "heart_lung_kidney_liver_or_bleeding_condition": {
+            "type": "boolean",
+            "title": "Heart Lung Kidney Liver Or Bleeding Condition"
+          },
+          "surgery_transfusion_or_hospitalization_last_12_months": {
+            "type": "boolean",
+            "title": "Surgery Transfusion Or Hospitalization Last 12 Months"
+          },
+          "tattoo_or_piercing_last_12_months": {
+            "type": "boolean",
+            "title": "Tattoo Or Piercing Last 12 Months"
+          },
+          "malaria_risk_travel_or_residence": {
+            "type": "boolean",
+            "title": "Malaria Risk Travel Or Residence"
+          },
+          "pregnancy_breastfeeding_or_recent_delivery": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pregnancy Breastfeeding Or Recent Delivery"
+          },
+          "last_donation_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Donation Date"
+          },
+          "answers_are_truthful": {
+            "type": "boolean",
+            "title": "Answers Are Truthful"
+          },
+          "consent_to_clinical_review": {
+            "type": "boolean",
+            "title": "Consent To Clinical Review"
+          }
+        },
+        "type": "object",
+        "required": [
+          "weight_kg",
+          "feeling_well_today",
+          "fever_infection_or_antibiotics",
+          "medication_requires_review",
+          "heart_lung_kidney_liver_or_bleeding_condition",
+          "surgery_transfusion_or_hospitalization_last_12_months",
+          "tattoo_or_piercing_last_12_months",
+          "malaria_risk_travel_or_residence",
+          "answers_are_truthful",
+          "consent_to_clinical_review"
+        ],
+        "title": "ScreeningSubmission"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VerificationDecision": {
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "VERIFIED",
+              "REJECTED"
+            ],
+            "title": "Decision"
+          },
+          "reason_code": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 3,
+            "title": "Reason Code"
+          },
+          "physician_registration_confirmed": {
+            "type": "boolean",
+            "title": "Physician Registration Confirmed"
+          },
+          "component_confirmed": {
+            "type": "boolean",
+            "title": "Component Confirmed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "decision",
+          "reason_code",
+          "physician_registration_confirmed",
+          "component_confirmed"
+        ],
+        "title": "VerificationDecision"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

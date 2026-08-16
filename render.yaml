@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: raktflow-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /api/v1/health
+    autoDeploy: false
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_CREDENTIALS_JSON
+        sync: false
+      - key: TOKEN_SIGNING_SECRET
+        generateValue: true
+      - key: CORS_ORIGINS
+        sync: false
+      - key: MAX_DB_CONNECTIONS
+        value: 5
+      - key: BOOTSTRAP_ADMIN_EMAIL
+        sync: false
+      - key: PUBLIC_APP_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: PII_ENCRYPTION_KEY
+        sync: false
+      - key: PHONE_HASH_PEPPER
+        generateValue: true

@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function hasRole(role) { return signedIn() && request.auth.token.role == role; }
+    function isRecipient() {
+      return signedIn()
+        && resource.data.recipientUid is string
+        && resource.data.recipientUid == request.auth.uid;
+    }
+
+    // Written only by Firebase Admin after the PostgreSQL transaction commits.
+    // Documents contain operational IDs and coarse status—not patient data.
+    match /operational_events/{eventId} {
+      allow read: if isRecipient();
+      allow create, update, delete: if false;
+    }
+
+    // Public drive discovery is an intentionally de-identified projection.
+    match /public_drives/{driveId} {
+      allow read: if resource.data.status in ['APPROVED', 'ACTIVE'];
+      allow write: if false;
+    }
+
+    // High-frequency desk state is drive-scoped through a custom Firebase claim.
+    match /drive_presence/{driveId}/stations/{stationId} {
+      allow read: if hasRole('ROLE_ORGANIZER') && request.auth.token.drive_ids.hasAny([driveId]);
+      allow write: if false;
+    }
+
+    match /{document=**} { allow read, write: if false; }
+  }
+}
