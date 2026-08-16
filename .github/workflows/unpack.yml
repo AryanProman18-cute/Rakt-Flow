@@ -1,0 +1,25 @@
+name: Unpack RaktFlow V3
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  unpack:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download repository
+        uses: actions/checkout@v4
+
+      - name: Extract RaktFlow source
+        run: |
+          unzip -o RaktFlow_v3_Portable.zip -d .
+          rm RaktFlow_v3_Portable.zip
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Unpack RaktFlow V3 source"
+          git push
