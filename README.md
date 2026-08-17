@@ -127,3 +127,5 @@ For an existing deployment, start with [`APPLY_V3_2_UPDATE.md`](APPLY_V3_2_UPDAT
 Contact: `chemnaam@gmail.com` · `+91 9908840322`
 
 <!-- Trigger Vercel V3.2 production deployment: 2026-08-18 -->
+
+<!-- Vercel trigger after Git connection: 2026-08-18 -->
