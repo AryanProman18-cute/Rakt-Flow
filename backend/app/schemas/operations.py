@@ -75,6 +75,8 @@ class DriveProposalCreate(BaseModel):
     starts_at: datetime
     ends_at: datetime
     target_units: int = Field(ge=1, le=1000)
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
     power_available: bool
     wifi_available: bool
     recovery_seats: int = Field(ge=1, le=500)
@@ -85,6 +87,8 @@ class DriveProposalCreate(BaseModel):
     def validate_window(self):
         if self.ends_at <= self.starts_at:
             raise ValueError("Proposal end time must be after start time")
+        if (self.latitude is None) != (self.longitude is None):
+            raise ValueError("Both latitude and longitude are required")
         return self
 
 

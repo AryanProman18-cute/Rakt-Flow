@@ -30,10 +30,18 @@ app = FastAPI(
     redoc_url=None,
 )
 
-if settings.cors_origins:
+# Normalize configured origins and always include PUBLIC_APP_URL. This prevents
+# a harmless trailing slash or a missing CORS_ORIGINS entry from breaking the
+# authenticated bootstrap after Firebase sign-in.
+allowed_origins = {
+    str(origin).strip().rstrip("/")
+    for origin in [*settings.cors_origins, settings.public_app_url]
+    if str(origin).strip().startswith(("https://", "http://"))
+}
+if allowed_origins:
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origins,
+        allow_origins=sorted(allowed_origins),
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-Offline-Replay"],

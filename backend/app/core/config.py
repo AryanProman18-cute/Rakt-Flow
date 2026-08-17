@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     public_app_url: str = "http://localhost:5173"
     resend_api_key: str = ""
     email_from: str = "RaktFlow <noreply@example.invalid>"
+    admin_notification_email: str = "chemnaam@gmail.com"
+    contact_email: str = "chemnaam@gmail.com"
+    contact_phone: str = "9908840322"
     pii_encryption_key: str = ""
     phone_hash_pepper: str = "development-phone-pepper-change-me"
     screening_min_age: int = 18

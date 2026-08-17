@@ -9,7 +9,7 @@ Source: `Raktflow.pdf` (14 pages). This matrix records where each major requirem
 | WCAG focus, semantics, contrast-oriented hierarchy | skip link, focus rings, dialog focus trap, labels | — | Implemented baseline; formal audit pending |
 | Neon pool capped at 5 | — | `core/database.py` | Implemented correctly against pooled PostgreSQL endpoint |
 | Offline shell and check-in replay | status UI, offline simulation | `sw.js`, `offline-db.js`, idempotent batch route | Scaffold; production replay credential and E2E tests pending |
-| Firebase magic link and Google | adapter source | Firebase token verification and custom roles | Implemented adapter; demo shell intentionally uses seeded role preview |
+| Firebase email/password, one-time email verification, recovery, and Google | adapter source and auth dialogs | Firebase token verification and custom roles | Implemented in V3.1; demo records remain separate |
 | Web Push / Firestore | notification UX | recipient rules, transactional outbox publisher | Scaffold; worker deployment and push subscriptions pending |
 | Cold-start hover ping | priority controls use `data-warm` | `HEAD /ping`, optional workflow | Implemented; no SLA claim |
 | Rare 15 km → 30 km pager | donor/hospital pager views | PostGIS query, 3–5 cap, 10-minute guard, one expansion | Core implemented; response endpoint/cooldowns pending |
@@ -34,7 +34,7 @@ Source: `Raktflow.pdf` (14 pages). This matrix records where each major requirem
 1. **Neon transport:** asyncpg uses PostgreSQL/TCP. The code uses Neon's pooled endpoint; it does not claim to combine asyncpg with a separate HTTP transaction driver.
 2. **Clinical verification:** parsing a slip, matching an IP range, or recognizing a physician name cannot safely authorize a request. Automation may pre-fill; an authorized human changes state.
 3. **“Universal donor” phrasing:** RaktFlow mobilizes logistics but never issues a transfusion instruction. Compatibility and emergency release remain under blood-bank/clinical SOPs.
-4. **Passkeys:** the source simultaneously requires Firebase magic-link/Google-only auth and hospital WebAuthn. The baseline implements the former and documents passkey step-up as a separate reviewed integration rather than pretending Firebase provides it automatically.
+4. **Passkeys:** the baseline uses Firebase email/password and Google authentication. Any hospital WebAuthn/passkey step-up remains a separate reviewed integration rather than being represented as part of the free Firebase baseline.
 5. **Document persistence:** a Render container filesystem is ephemeral and inappropriate for requisitions. Production upload fails closed until a private durable object-store adapter is configured.
 6. **Free-tier reliability:** optional probes may reduce some cold starts but cannot guarantee an always-on emergency service and may be constrained by current vendor terms. The documentation requires a paid reliability plan before clinical use.
 7. **Screening language:** self-reported answers produce “proceed to on-site assessment,” not a medical clearance token.

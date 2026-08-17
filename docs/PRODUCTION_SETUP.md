@@ -5,7 +5,7 @@ The earlier Vercel ZIP was a prebuilt visual demo. A functional deployment must 
 ## Required services
 
 - **Vercel:** frontend PWA
-- **Firebase Authentication:** verified email magic links, Google sign-in, custom role claims
+- **Firebase Authentication:** email/password with one-time email verification, password reset, Google sign-in, and custom role claims
 - **Neon PostgreSQL:** authoritative operational records
 - **Render:** FastAPI container
 - **Resend:** staff invitation email delivery
@@ -22,9 +22,14 @@ Upload the full `raktflow/` source tree—not the old static `vercel-deploy` fol
 2. Project settings → General → add a **Web app**.
 3. Copy the public web values: API key, auth domain, project ID, app ID.
 4. Authentication → Sign-in method:
-   - enable **Email link (passwordless sign-in)**;
-   - enable **Google**;
+   - open **Email/Password**;
+   - enable **Email/Password** and save;
+   - keep **Email link (passwordless sign-in)** enabled only during the short transition for links issued by the older release, then disable it;
+   - enable **Google**, select a support email, and save;
    - do not enable SMS.
+5. Authentication → Templates:
+   - review the **Email address verification** and **Password reset** sender name, subject, and content;
+   - ensure both templates lead users back to the production RaktFlow domain.
 5. Authentication → Settings → Authorized domains:
    - add the final `*.vercel.app` domain;
    - add the custom domain later if used.
@@ -90,7 +95,7 @@ PII_ENCRYPTION_KEY=<generated base64 key>
 PHONE_HASH_PEPPER=<generated secret>
 BOOTSTRAP_ADMIN_EMAIL=<your exact verified email>
 PUBLIC_APP_URL=https://your-vercel-domain.vercel.app
-CORS_ORIGINS=https://your-vercel-domain.vercel.app
+CORS_ORIGINS=["https://your-vercel-domain.vercel.app"]
 RESEND_API_KEY=<Resend key>
 EMAIL_FROM=RaktFlow <access@yourdomain.in>
 MAX_DB_CONNECTIONS=5

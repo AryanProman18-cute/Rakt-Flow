@@ -3,7 +3,9 @@ from fastapi import APIRouter
 from app.api.routes import (
     accounts,
     admin,
+    campaigns,
     checkins,
+    clinical,
     donors,
     drives,
     health,
@@ -20,10 +22,12 @@ api_router.include_router(health.router)
 api_router.include_router(public.router)
 api_router.include_router(accounts.router)
 api_router.include_router(admin.router)
+api_router.include_router(campaigns.router)
 api_router.include_router(hospitals.router)
 api_router.include_router(donors.router)
 api_router.include_router(drives.router)
 api_router.include_router(checkins.router)
+api_router.include_router(clinical.router)
 api_router.include_router(intake.router)
 api_router.include_router(requests.router)
 api_router.include_router(logistics.router)

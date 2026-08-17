@@ -3,7 +3,9 @@ from secrets import token_hex
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import or_, select
+from geoalchemy2 import Geometry
+from geoalchemy2.functions import ST_MakePoint, ST_SetSRID
+from sqlalchemy import cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
@@ -111,9 +113,21 @@ async def get_donor_profile(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> DonorProfileView:
     user = await session.scalar(select(User).where(User.firebase_uid == actor.uid))
-    profile = await session.scalar(select(DonorProfile).where(DonorProfile.user_id == user.id)) if user else None
-    if profile is None:
+    profile_row = None
+    if user:
+        location_geometry = cast(DonorProfile.location, Geometry("POINT", srid=4326))
+        profile_row = (
+            await session.execute(
+                select(
+                    DonorProfile,
+                    func.ST_Y(location_geometry).label("latitude"),
+                    func.ST_X(location_geometry).label("longitude"),
+                ).where(DonorProfile.user_id == user.id)
+            )
+        ).one_or_none()
+    if profile_row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Donor profile is not complete")
+    profile, latitude, longitude = profile_row
     screening = await session.scalar(
         select(Screening).where(Screening.donor_id == profile.id).order_by(Screening.created_at.desc()).limit(1)
     )
@@ -124,13 +138,19 @@ async def get_donor_profile(
     return DonorProfileView(
         reference_code=profile.reference_code,
         full_name=profile.display_name,
+        date_of_birth=profile.date_of_birth,
         age=age_on(profile.date_of_birth) if profile.date_of_birth else None,
+        phone=normalized_phone,
         phone_masked=mask_phone(normalized_phone) if normalized_phone else "Not provided",
         city=profile.city,
+        latitude=latitude,
+        longitude=longitude,
         blood_type=profile.blood_type,
         profile_status=profile.profile_status,
         identity_verified=profile.identity_verified_at is not None,
         latest_screening_outcome=screening.outcome if screening else None,
+        screening_review_status=screening.review_status if screening else None,
+        screening_valid_until=screening.valid_until if screening else None,
     )
 
 
@@ -143,6 +163,8 @@ async def upsert_donor_profile(
 ) -> DonorProfileView:
     if not payload.consent_to_process:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Data-processing consent is required")
+    if (payload.latitude is None) != (payload.longitude is None):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Both latitude and longitude are required")
     user = await session.scalar(select(User).where(User.firebase_uid == actor.uid))
     if user is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Complete account bootstrap first")
@@ -163,6 +185,8 @@ async def upsert_donor_profile(
     profile.phone_hash = vault.keyed_hash(normalized_phone)
     profile.phone_encrypted = vault.encrypt_text(normalized_phone, context=f"donor-phone:{user.id}")
     profile.city = payload.city.strip()
+    if payload.latitude is not None and payload.longitude is not None:
+        profile.location = ST_SetSRID(ST_MakePoint(payload.longitude, payload.latitude), 4326)
     profile.blood_type = payload.blood_type
     profile.profile_status = "COMPLETE"
     profile.consent_at = profile.consent_at or datetime.now(UTC)
@@ -171,13 +195,19 @@ async def upsert_donor_profile(
     return DonorProfileView(
         reference_code=profile.reference_code,
         full_name=profile.display_name,
+        date_of_birth=profile.date_of_birth,
         age=age_on(profile.date_of_birth),
+        phone=normalized_phone,
         phone_masked=mask_phone(normalized_phone),
         city=profile.city,
+        latitude=payload.latitude,
+        longitude=payload.longitude,
         blood_type=profile.blood_type,
         profile_status=profile.profile_status,
         identity_verified=profile.identity_verified_at is not None,
         latest_screening_outcome=None,
+        screening_review_status=None,
+        screening_valid_until=None,
     )
 
 

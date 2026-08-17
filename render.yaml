@@ -30,6 +30,12 @@ services:
         sync: false
       - key: EMAIL_FROM
         sync: false
+      - key: ADMIN_NOTIFICATION_EMAIL
+        value: chemnaam@gmail.com
+      - key: CONTACT_EMAIL
+        value: chemnaam@gmail.com
+      - key: CONTACT_PHONE
+        value: "9908840322"
       - key: PII_ENCRYPTION_KEY
         sync: false
       - key: PHONE_HASH_PEPPER

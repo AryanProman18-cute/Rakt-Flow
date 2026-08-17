@@ -2,16 +2,27 @@ from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from geoalchemy2 import Geography, Geometry
 from geoalchemy2.functions import ST_MakePoint, ST_SetSRID
-from sqlalchemy import func, select
+from sqlalchemy import cast, func, null, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import database_user
 from app.core.database import get_session
 from app.core.security import Actor, require_roles
-from app.models.entities import CheckIn, DonationRecord, Drive, DriveProposal, User
+from app.models.entities import (
+    Campaign,
+    CheckIn,
+    DonationRecord,
+    DonorProfile,
+    Drive,
+    DriveProposal,
+    DriveRegistration,
+    User,
+)
 from app.schemas.accounts import DriveCreate, DriveStatusUpdate
+from app.schemas.integrated import DriveRegistrationCreate
 from app.schemas.operations import DriveProposalCreate, DriveUpdate, ProposalDecision
 from app.services.audit import append_audit_event
 
@@ -32,18 +43,44 @@ def view(drive: Drive) -> dict:
 
 
 @router.get("/public")
-async def public_drives(session: Annotated[AsyncSession, Depends(get_session)]) -> list[dict]:
-    drives = list(
-        (
-            await session.scalars(
-                select(Drive)
-                .where(Drive.status.in_(["APPROVED", "ACTIVE"]))
-                .order_by(Drive.starts_at)
-                .limit(100)
-            )
-        ).all()
+async def public_drives(
+    session: Annotated[AsyncSession, Depends(get_session)],
+    latitude: float | None = Query(default=None, ge=-90, le=90),
+    longitude: float | None = Query(default=None, ge=-180, le=180),
+    radius_km: float = Query(default=100, ge=1, le=500),
+) -> list[dict]:
+    geometry = cast(Drive.location, Geometry("POINT", srid=4326))
+    statement = select(
+        Drive,
+        func.ST_Y(geometry).label("latitude"),
+        func.ST_X(geometry).label("longitude"),
+    ).where(
+        Drive.status.in_(["APPROVED", "ACTIVE"]),
+        Drive.ends_at > datetime.now(UTC),
     )
-    return [view(drive) for drive in drives]
+    if latitude is not None and longitude is not None:
+        nearby_point = cast(
+            func.ST_SetSRID(func.ST_MakePoint(longitude, latitude), 4326),
+            Geography("POINT", srid=4326),
+        )
+        distance = func.ST_Distance(Drive.location, nearby_point) / 1000.0
+        statement = statement.add_columns(distance.label("distance_km")).where(
+            Drive.location.is_not(None),
+            func.ST_DWithin(Drive.location, nearby_point, radius_km * 1000),
+        ).order_by(distance, Drive.starts_at)
+    else:
+        statement = statement.add_columns(null().label("distance_km")).order_by(Drive.starts_at)
+    rows = (await session.execute(statement.limit(100))).all()
+    result = []
+    for drive, drive_latitude, drive_longitude, distance_km in rows:
+        item = view(drive)
+        item.update({
+            "latitude": drive_latitude,
+            "longitude": drive_longitude,
+            "distance_km": round(float(distance_km), 1) if distance_km is not None else None,
+        })
+        result.append(item)
+    return result
 
 
 @router.get("/mine")
@@ -57,6 +94,259 @@ async def my_drives(
         statement = statement.where(Drive.organizer_user_id == user.id)
     drives = list((await session.scalars(statement)).all())
     return [view(drive) for drive in drives]
+
+
+async def _owned_drive(session: AsyncSession, actor: Actor, user: User, drive_id: UUID) -> Drive:
+    drive = await session.get(Drive, drive_id)
+    if drive is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Drive not found")
+    if drive.organizer_user_id != user.id and "ROLE_SUPER_ADMIN" not in actor.roles:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only the drive owner or Super Admin may view this data")
+    return drive
+
+
+@router.get("/registrations/mine")
+async def my_drive_registrations(
+    _actor: Annotated[Actor, Depends(require_roles("ROLE_DONOR"))],
+    user: Annotated[User, Depends(database_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[dict]:
+    donor = await session.scalar(select(DonorProfile).where(DonorProfile.user_id == user.id))
+    if donor is None:
+        return []
+    rows = (
+        await session.execute(
+            select(DriveRegistration, Drive, Campaign.slug)
+            .join(Drive, Drive.id == DriveRegistration.drive_id)
+            .outerjoin(Campaign, Campaign.id == DriveRegistration.source_campaign_id)
+            .where(DriveRegistration.donor_id == donor.id)
+            .order_by(DriveRegistration.registered_at.desc())
+            .limit(100)
+        )
+    ).all()
+    return [
+        {
+            "registration_id": str(registration.id),
+            "status": registration.status,
+            "registered_at": registration.registered_at,
+            "checked_in_at": registration.checked_in_at,
+            "campaign_slug": campaign_slug,
+            "drive": view(drive),
+        }
+        for registration, drive, campaign_slug in rows
+    ]
+
+
+@router.post("/{drive_id}/registrations", status_code=status.HTTP_201_CREATED)
+async def register_for_drive(
+    drive_id: UUID,
+    payload: DriveRegistrationCreate,
+    actor: Annotated[Actor, Depends(require_roles("ROLE_DONOR"))],
+    user: Annotated[User, Depends(database_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> dict:
+    drive = await session.get(Drive, drive_id)
+    if drive is None or drive.status not in {"APPROVED", "ACTIVE"} or drive.ends_at <= datetime.now(UTC):
+        raise HTTPException(status.HTTP_409_CONFLICT, "This drive is not open for registration")
+    donor = await session.scalar(select(DonorProfile).where(DonorProfile.user_id == user.id))
+    if donor is None or donor.profile_status != "COMPLETE":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Complete your donor profile before registering")
+    if donor.blood_type == "UNKNOWN":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Select your self-reported blood group before registering")
+    campaign = None
+    if payload.campaign_id:
+        campaign = await session.scalar(
+            select(Campaign).where(
+                Campaign.id == payload.campaign_id,
+                Campaign.drive_id == drive.id,
+                Campaign.status == "PUBLISHED",
+            )
+        )
+        if campaign is None:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Campaign does not match this drive")
+    registration = await session.scalar(
+        select(DriveRegistration).where(
+            DriveRegistration.drive_id == drive.id,
+            DriveRegistration.donor_id == donor.id,
+        ).with_for_update()
+    )
+    now = datetime.now(UTC)
+    created = registration is None
+    if registration is None:
+        registration = DriveRegistration(
+            drive_id=drive.id,
+            donor_id=donor.id,
+            source_campaign_id=campaign.id if campaign else None,
+            status="REGISTERED",
+            registered_at=now,
+        )
+        session.add(registration)
+        await session.flush()
+    elif registration.status == "CANCELLED":
+        registration.status = "REGISTERED"
+        registration.registered_at = now
+        registration.source_campaign_id = campaign.id if campaign else registration.source_campaign_id
+    await append_audit_event(
+        session,
+        actor_uid=actor.uid,
+        action="DRIVE_REGISTRATION_CREATED" if created else "DRIVE_REGISTRATION_CONFIRMED",
+        resource_type="drive_registration",
+        resource_id=registration.id,
+        metadata={"drive_id": str(drive.id), "campaign_id": str(campaign.id) if campaign else None},
+    )
+    await session.commit()
+    return {
+        "registration_id": str(registration.id),
+        "drive_id": str(drive.id),
+        "status": registration.status,
+        "registered_at": registration.registered_at,
+        "created": created,
+    }
+
+
+@router.delete("/{drive_id}/registrations/me")
+async def cancel_drive_registration(
+    drive_id: UUID,
+    actor: Annotated[Actor, Depends(require_roles("ROLE_DONOR"))],
+    user: Annotated[User, Depends(database_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> dict:
+    donor = await session.scalar(select(DonorProfile).where(DonorProfile.user_id == user.id))
+    registration = await session.scalar(
+        select(DriveRegistration).where(
+            DriveRegistration.drive_id == drive_id,
+            DriveRegistration.donor_id == (donor.id if donor else None),
+        ).with_for_update()
+    )
+    if registration is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Registration not found")
+    if registration.status == "CHECKED_IN":
+        raise HTTPException(status.HTTP_409_CONFLICT, "A checked-in registration cannot be cancelled")
+    registration.status = "CANCELLED"
+    await append_audit_event(
+        session, actor_uid=actor.uid, action="DRIVE_REGISTRATION_CANCELLED",
+        resource_type="drive_registration", resource_id=registration.id,
+    )
+    await session.commit()
+    return {"registration_id": str(registration.id), "status": registration.status}
+
+
+@router.get("/{drive_id}/roster")
+async def drive_roster(
+    drive_id: UUID,
+    actor: Annotated[Actor, Depends(require_roles("ROLE_ORGANIZER"))],
+    user: Annotated[User, Depends(database_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[dict]:
+    await _owned_drive(session, actor, user, drive_id)
+    registrations = (
+        await session.execute(
+            select(DriveRegistration, DonorProfile)
+            .join(DonorProfile, DonorProfile.id == DriveRegistration.donor_id)
+            .where(DriveRegistration.drive_id == drive_id)
+            .order_by(DriveRegistration.registered_at.desc())
+            .limit(500)
+        )
+    ).all()
+    result: list[dict] = []
+    seen: set[UUID] = set()
+    for registration, donor in registrations:
+        seen.add(donor.id)
+        checkin = await session.scalar(
+            select(CheckIn).where(CheckIn.drive_id == drive_id, CheckIn.donor_id == donor.id)
+            .order_by(CheckIn.scanned_at.desc()).limit(1)
+        )
+        donation = await session.scalar(
+            select(DonationRecord).where(
+                DonationRecord.drive_id == drive_id,
+                DonationRecord.donor_id == donor.id,
+            ).order_by(DonationRecord.collected_at.desc()).limit(1)
+        )
+        result.append({
+            "registration_id": str(registration.id),
+            "donor_reference": donor.reference_code,
+            "display_name": donor.display_name,
+            "blood_type": donor.blood_type,
+            "registration_status": registration.status,
+            "registered_at": registration.registered_at,
+            "checkin_id": str(checkin.id) if checkin else None,
+            "checked_in_at": checkin.scanned_at if checkin else None,
+            "clearance_status": checkin.clearance_status if checkin else "NOT_CHECKED_IN",
+            "donation_recorded": donation is not None,
+            "unit_reference": donation.unit_reference if donation else None,
+        })
+    unregistered = (
+        await session.execute(
+            select(CheckIn, DonorProfile)
+            .join(DonorProfile, DonorProfile.id == CheckIn.donor_id)
+            .where(CheckIn.drive_id == drive_id, CheckIn.donor_id.not_in(seen) if seen else True)
+            .order_by(CheckIn.scanned_at.desc())
+            .limit(500)
+        )
+    ).all()
+    for checkin, donor in unregistered:
+        donation = await session.scalar(
+            select(DonationRecord).where(DonationRecord.checkin_id == checkin.id)
+        )
+        result.append({
+            "registration_id": None,
+            "donor_reference": donor.reference_code,
+            "display_name": donor.display_name,
+            "blood_type": donor.blood_type,
+            "registration_status": "WALK_IN",
+            "registered_at": None,
+            "checkin_id": str(checkin.id),
+            "checked_in_at": checkin.scanned_at,
+            "clearance_status": checkin.clearance_status,
+            "donation_recorded": donation is not None,
+            "unit_reference": donation.unit_reference if donation else None,
+        })
+    return result
+
+
+@router.get("/{drive_id}/reconciliation")
+async def drive_reconciliation(
+    drive_id: UUID,
+    actor: Annotated[Actor, Depends(require_roles("ROLE_ORGANIZER"))],
+    user: Annotated[User, Depends(database_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> dict:
+    drive = await _owned_drive(session, actor, user, drive_id)
+    records = (
+        await session.execute(
+            select(DonationRecord, DonorProfile)
+            .join(DonorProfile, DonorProfile.id == DonationRecord.donor_id)
+            .where(DonationRecord.drive_id == drive.id)
+            .order_by(DonationRecord.collected_at.desc())
+        )
+    ).all()
+    checkins = int(await session.scalar(select(func.count()).select_from(CheckIn).where(CheckIn.drive_id == drive.id)) or 0)
+    cleared = int(await session.scalar(select(func.count()).select_from(CheckIn).where(CheckIn.drive_id == drive.id, CheckIn.clearance_status == "CLEARED")) or 0)
+    deferred = int(await session.scalar(select(func.count()).select_from(CheckIn).where(CheckIn.drive_id == drive.id, CheckIn.clearance_status == "DEFERRED")) or 0)
+    registrations = int(await session.scalar(select(func.count()).select_from(DriveRegistration).where(DriveRegistration.drive_id == drive.id, DriveRegistration.status != "CANCELLED")) or 0)
+    total_volume = sum(record.volume_ml or 0 for record, _donor in records)
+    return {
+        "drive": view(drive),
+        "registrations": registrations,
+        "checkins": checkins,
+        "cleared": cleared,
+        "deferred": deferred,
+        "units_logged": len(records),
+        "total_volume_ml": total_volume,
+        "target_completion_percent": round((len(records) / drive.target_units) * 100, 1) if drive.target_units else 0,
+        "records": [
+            {
+                "donor_reference": donor.reference_code,
+                "display_name": donor.display_name,
+                "unit_reference": record.unit_reference,
+                "component_type": record.component_type,
+                "blood_type": record.blood_type_at_collection,
+                "volume_ml": record.volume_ml,
+                "collected_at": record.collected_at,
+            }
+            for record, donor in records
+        ],
+    }
 
 
 @router.patch("/{drive_id}/status")
@@ -211,6 +501,7 @@ async def create_proposal(
             "power_available": payload.power_available, "wifi_available": payload.wifi_available,
             "recovery_seats": payload.recovery_seats, "parking_available": payload.parking_available,
             "privacy_partitions": payload.privacy_partitions,
+            "latitude": payload.latitude, "longitude": payload.longitude,
         },
         status="PENDING",
     )
@@ -264,9 +555,15 @@ async def decide_proposal(
     proposal.responded_by_user_id = responder.id
     proposal.responded_at = datetime.now(UTC)
     if payload.decision == "APPROVED":
+        latitude = proposal.requirements_json.get("latitude")
+        longitude = proposal.requirements_json.get("longitude")
+        location = (
+            ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)
+            if latitude is not None and longitude is not None else None
+        )
         drive = Drive(
             organizer_user_id=proposal.organizer_user_id, venue_id=None,
-            venue_name=proposal.venue_name, address=proposal.address,
+            venue_name=proposal.venue_name, address=proposal.address, location=location,
             name=proposal.proposed_name, starts_at=proposal.starts_at, ends_at=proposal.ends_at,
             target_units=proposal.target_units, status="APPROVED",
         )

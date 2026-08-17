@@ -44,7 +44,7 @@ Every high-impact action requires an authenticated named actor, explicit confirm
 
 ## 3. Authentication and authorization
 
-- Firebase Auth supports email magic links and Google sign-in; SMS is excluded.
+- Firebase Auth supports email/password with one-time email verification, password reset, and Google sign-in; SMS is excluded.
 - A sign-in does not provision a role. A trusted administration workflow verifies organization, domain, employment/affiliation, and expiration before setting custom claims and creating the PostgreSQL user.
 - Hospital accounts require narrower permissions than `ROLE_HOSPITAL`: `REQUEST_CREATE`, `REQUEST_REVIEW`, `PPH_ACTIVATE`, `INVENTORY_WRITE`, and `MEDICAL_DIRECTOR` should be separate claims or database grants before production.
 - Firebase ID tokens are checked for validity and revocation. Sensitive actions should also reject old `auth_time` and require reauthentication.
@@ -98,7 +98,7 @@ Log:
 
 Do not log:
 
-- JWTs, magic links, VAPID keys, Firebase credentials;
+- JWTs, email-verification/reset links, VAPID keys, Firebase credentials;
 - patient reference, donor phone/email, exact coordinates;
 - requisition content, screening answers, QR token, rotating code;
 - full Firestore payloads.

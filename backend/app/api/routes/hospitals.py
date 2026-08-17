@@ -1,8 +1,9 @@
+import hashlib
 from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, status
 from geoalchemy2.functions import ST_MakePoint, ST_SetSRID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,9 +12,16 @@ from app.api.deps import database_user
 from app.core.config import Settings, get_settings
 from app.core.database import get_session
 from app.core.security import Actor, current_actor, require_roles
-from app.models.entities import BloodInventory, HospitalProfile, InventoryEvent, User
+from app.models.entities import (
+    BloodInventory,
+    HospitalApplicationDocument,
+    HospitalProfile,
+    InventoryEvent,
+    User,
+)
 from app.schemas.operations import HospitalApplication, HospitalVerification, InventoryMutation
 from app.services.audit import append_audit_event
+from app.services.email import EmailDelivery, send_hospital_application_notification
 from app.services.privacy import PrivacyVault, normalize_phone
 from app.services.roles import active_roles, push_firebase_claims, replace_roles
 
@@ -81,7 +89,129 @@ async def apply_for_hospital_account(
         resource_type="hospital_profile", resource_id=profile.id,
     )
     await session.commit()
-    return _profile_view(profile)
+    try:
+        delivery = await send_hospital_application_notification(
+            application_id=profile.id,
+            facility_name=profile.facility_name,
+            applicant_email=actor.email,
+            settings=settings,
+        )
+    except Exception:
+        delivery = EmailDelivery(status="FAILED")
+    return _profile_view(profile) | {"notification_delivery": delivery.status}
+
+
+async def _application_for_document_access(
+    hospital_id: UUID,
+    actor: Actor,
+    user: User,
+    session: AsyncSession,
+) -> HospitalProfile:
+    profile = await session.get(HospitalProfile, hospital_id)
+    if profile is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Hospital application not found")
+    if profile.user_id != user.id and "ROLE_SUPER_ADMIN" not in actor.roles:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "This application belongs to another account")
+    return profile
+
+
+@router.post("/{hospital_id}/documents", status_code=status.HTTP_201_CREATED)
+async def upload_hospital_application_document(
+    hospital_id: UUID,
+    upload: UploadFile,
+    actor: Annotated[Actor, Depends(current_actor)],
+    user: Annotated[User, Depends(database_user)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> dict:
+    profile = await _application_for_document_access(hospital_id, actor, user, session)
+    if profile.status != "PENDING" and "ROLE_SUPER_ADMIN" not in actor.roles:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Documents can only be added while review is pending")
+    allowed_types = {"application/pdf", "image/jpeg", "image/png"}
+    if upload.content_type not in allowed_types:
+        raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "Only PDF, JPEG, or PNG evidence is accepted")
+    content = await upload.read(settings.max_upload_bytes + 1)
+    if not content or len(content) > settings.max_upload_bytes:
+        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Evidence document exceeds the configured limit")
+    vault = PrivacyVault(settings.pii_encryption_key, settings.phone_hash_pepper)
+    document = HospitalApplicationDocument(
+        hospital_id=profile.id,
+        uploader_user_id=user.id,
+        original_filename=(upload.filename or "facility-evidence")[:255],
+        content_type=upload.content_type,
+        encrypted_content=vault.encrypt_bytes(content, context=f"hospital-document:{profile.id}"),
+        sha256=hashlib.sha256(content).digest(),
+        size_bytes=len(content),
+    )
+    session.add(document)
+    await session.flush()
+    await append_audit_event(
+        session, actor_uid=actor.uid, action="HOSPITAL_DOCUMENT_UPLOADED",
+        resource_type="hospital_application_document", resource_id=document.id,
+        metadata={"hospital_id": str(profile.id), "content_type": document.content_type, "size_bytes": len(content)},
+    )
+    await session.commit()
+    return {
+        "id": str(document.id), "hospital_id": str(profile.id),
+        "original_filename": document.original_filename, "content_type": document.content_type,
+        "size_bytes": document.size_bytes, "sha256": document.sha256.hex(),
+    }
+
+
+@router.get("/{hospital_id}/documents")
+async def list_hospital_application_documents(
+    hospital_id: UUID,
+    actor: Annotated[Actor, Depends(current_actor)],
+    user: Annotated[User, Depends(database_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[dict]:
+    await _application_for_document_access(hospital_id, actor, user, session)
+    documents = (
+        await session.scalars(
+            select(HospitalApplicationDocument)
+            .where(HospitalApplicationDocument.hospital_id == hospital_id)
+            .order_by(HospitalApplicationDocument.created_at.desc())
+        )
+    ).all()
+    return [
+        {
+            "id": str(document.id), "original_filename": document.original_filename,
+            "content_type": document.content_type, "size_bytes": document.size_bytes,
+            "sha256": document.sha256.hex(), "created_at": document.created_at,
+        }
+        for document in documents
+    ]
+
+
+@router.get("/{hospital_id}/documents/{document_id}")
+async def download_hospital_application_document(
+    hospital_id: UUID,
+    document_id: UUID,
+    actor: Annotated[Actor, Depends(current_actor)],
+    user: Annotated[User, Depends(database_user)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Response:
+    profile = await _application_for_document_access(hospital_id, actor, user, session)
+    document = await session.scalar(
+        select(HospitalApplicationDocument).where(
+            HospitalApplicationDocument.id == document_id,
+            HospitalApplicationDocument.hospital_id == profile.id,
+        )
+    )
+    if document is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Application document not found")
+    vault = PrivacyVault(settings.pii_encryption_key, settings.phone_hash_pepper)
+    content = vault.decrypt_bytes(document.encrypted_content, context=f"hospital-document:{profile.id}")
+    safe_name = document.original_filename.replace('"', "").replace("\r", "").replace("\n", "")
+    return Response(
+        content=content,
+        media_type=document.content_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{safe_name}"',
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 @router.get("/me")
@@ -124,6 +254,14 @@ async def decide_hospital_application(
     account = await session.get(User, profile.user_id)
     if account is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Hospital account no longer exists")
+    if payload.decision == "VERIFIED":
+        evidence_count = await session.scalar(
+            select(func.count()).select_from(HospitalApplicationDocument).where(
+                HospitalApplicationDocument.hospital_id == profile.id
+            )
+        )
+        if not evidence_count:
+            raise HTTPException(status.HTTP_409_CONFLICT, "Review at least one facility evidence document before verification")
     profile.status = payload.decision
     profile.verified_by_user_id = admin_user.id
     profile.verified_at = datetime.now(UTC) if payload.decision == "VERIFIED" else None

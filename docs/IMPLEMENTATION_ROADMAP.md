@@ -7,7 +7,7 @@
 | Multi-role responsive experience | Working interactive prototype |
 | Production frontend build | Passing |
 | Workbox precache/background sync | Implemented scaffold |
-| Firebase magic-link/Google adapters | Implemented; not wired to demo shell |
+| Firebase email/password, verification, recovery, and Google adapters | Implemented and wired to the V3.1 sign-in/registration interface |
 | FastAPI route and ORM scaffold | Implemented |
 | PostgreSQL/PostGIS initial migration | Implemented |
 | Rare-grid and platelet pure logic | Implemented; unit-tested |
@@ -32,7 +32,7 @@
 
 ## Phase 1 — identity, tenancy, and core platform (3–5 weeks)
 
-- Wire `auth.js` into a neutral sign-in experience.
+- Validate email/password registration, verification, recovery, Google sign-in, and backend bootstrap in supported browsers.
 - Build invite/provisioning and offboarding for organizations and staff.
 - Replace broad roles with permission claims and server-side resource membership.
 - Add hospital, organizer, and venue tenant tables and membership constraints.

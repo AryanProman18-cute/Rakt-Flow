@@ -1,57 +1,61 @@
+import en from './locales/en.json';
+
 export const languages = [
   ['en', 'English'], ['hi', 'हिन्दी'], ['te', 'తెలుగు'], ['bn', 'বাংলা'],
   ['mr', 'मराठी'], ['ta', 'தமிழ்'], ['kn', 'ಕನ್ನಡ'], ['ml', 'മലയാളം']
 ];
 
-const translations = {
-  hi: {
-    'Overview':'अवलोकन','Nearby drives':'नज़दीकी शिविर','Emergency calls':'आपात अनुरोध','Digital pass':'डिजिटल पास','Command center':'कमांड केंद्र','QR intake':'क्यूआर प्रवेश','Donor register':'दाता रजिस्टर','Certificates':'प्रमाणपत्र','Operations':'संचालन','Blood inventory':'रक्त भंडार','Requisitions':'रक्त अनुरोध','Maternity bridge':'मातृत्व सहायता','Drive proposals':'शिविर प्रस्ताव','Campaign builder':'अभियान निर्माता','Impact & ESG':'प्रभाव और ईएसजी','Venue logistics':'स्थल व्यवस्था','Access control':'पहुँच नियंत्रण','Invitations':'निमंत्रण','Audit trail':'ऑडिट विवरण','Platform health':'प्लेटफ़ॉर्म स्थिति','Current workspace':'वर्तमान कार्यक्षेत्र','Workspace':'कार्यक्षेत्र','Viewing as':'भूमिका','Sign out':'साइन आउट','Sign in':'साइन इन','Become a donor':'रक्तदाता बनें','Nearby donation drives':'नज़दीकी रक्तदान शिविर','Verified emergency calls':'सत्यापित आपात अनुरोध','Clinical operations':'चिकित्सकीय संचालन','Emergency requisitions':'आपात रक्त अनुरोध','Maternity blood bridge':'मातृत्व रक्त सहायता','On-site donor intake':'स्थल पर दाता प्रवेश','Email access control':'ईमेल पहुँच नियंत्रण','Staff invitations':'कर्मचारी निमंत्रण','Create drive':'शिविर बनाएँ','New requisition':'नया अनुरोध','Refresh':'ताज़ा करें','Show donor pass':'दाता पास दिखाएँ','Health pre-check':'स्वास्थ्य पूर्व-जाँच','Edit profile':'प्रोफ़ाइल संपादित करें','Complete profile':'प्रोफ़ाइल पूरी करें','Verified response network · built for India':'सत्यापित सहायता नेटवर्क · भारत के लिए','Donation history':'दान इतिहास','India resources':'भारत संसाधन','Hospital verification':'अस्पताल सत्यापन','Drive approvals':'शिविर अनुमोदन','English':'अंग्रेज़ी'
-  },
-  te: {
-    'Overview':'సారాంశం','Nearby drives':'సమీప శిబిరాలు','Emergency calls':'అత్యవసర అభ్యర్థనలు','Digital pass':'డిజిటల్ పాస్','Command center':'కమాండ్ కేంద్రం','QR intake':'క్యూఆర్ నమోదు','Donor register':'దాతల రిజిస్టర్','Certificates':'ధృవపత్రాలు','Operations':'కార్యకలాపాలు','Blood inventory':'రక్త నిల్వ','Requisitions':'రక్త అభ్యర్థనలు','Maternity bridge':'ప్రసూతి సహాయం','Drive proposals':'శిబిర ప్రతిపాదనలు','Campaign builder':'ప్రచార నిర్మాణం','Impact & ESG':'ప్రభావం & ESG','Venue logistics':'వేదిక ఏర్పాట్లు','Access control':'ప్రవేశ నియంత్రణ','Invitations':'ఆహ్వానాలు','Audit trail':'ఆడిట్ వివరాలు','Platform health':'ప్లాట్‌ఫారమ్ స్థితి','Current workspace':'ప్రస్తుత కార్యస్థలం','Workspace':'కార్యస్థలం','Viewing as':'పాత్ర','Sign out':'సైన్ అవుట్','Sign in':'సైన్ ఇన్','Become a donor':'రక్తదాత అవ్వండి','Nearby donation drives':'సమీప రక్తదాన శిబిరాలు','Verified emergency calls':'ధృవీకరించిన అత్యవసర అభ్యర్థనలు','Clinical operations':'వైద్య కార్యకలాపాలు','Emergency requisitions':'అత్యవసర రక్త అభ్యర్థనలు','Maternity blood bridge':'ప్రసూతి రక్త సహాయం','On-site donor intake':'శిబిరంలో దాత నమోదు','Email access control':'ఇమెయిల్ ప్రవేశ నియంత్రణ','Staff invitations':'సిబ్బంది ఆహ్వానాలు','Create drive':'శిబిరం సృష్టించండి','New requisition':'కొత్త అభ్యర్థన','Refresh':'రిఫ్రెష్','Show donor pass':'దాత పాస్ చూపించు','Health pre-check':'ఆరోగ్య ముందస్తు తనిఖీ','Edit profile':'ప్రొఫైల్ సవరించండి','Complete profile':'ప్రొఫైల్ పూర్తి చేయండి','Verified response network · built for India':'ధృవీకరించిన సహాయ నెట్‌వర్క్ · భారతదేశం కోసం','Donation history':'రక్తదాన చరిత్ర','India resources':'భారత వనరులు','Hospital verification':'ఆసుపత్రి ధృవీకరణ','Drive approvals':'శిబిర అనుమతులు','English':'ఇంగ్లీష్'
-  },
-  bn: {
-    'Overview':'সারসংক্ষেপ','Nearby drives':'কাছের শিবির','Emergency calls':'জরুরি অনুরোধ','Digital pass':'ডিজিটাল পাস','Command center':'কমান্ড সেন্টার','QR intake':'কিউআর নিবন্ধন','Donor register':'দাতা নিবন্ধন','Certificates':'শংসাপত্র','Operations':'কার্যক্রম','Blood inventory':'রক্তের মজুত','Requisitions':'রক্তের অনুরোধ','Maternity bridge':'মাতৃত্ব সহায়তা','Drive proposals':'শিবির প্রস্তাব','Campaign builder':'প্রচার নির্মাতা','Impact & ESG':'প্রভাব ও ESG','Venue logistics':'স্থান ব্যবস্থাপনা','Access control':'প্রবেশ নিয়ন্ত্রণ','Invitations':'আমন্ত্রণ','Audit trail':'অডিট বিবরণ','Platform health':'প্ল্যাটফর্ম অবস্থা','Current workspace':'বর্তমান কর্মক্ষেত্র','Workspace':'কর্মক্ষেত্র','Viewing as':'ভূমিকা','Sign out':'সাইন আউট','Sign in':'সাইন ইন','Become a donor':'রক্তদাতা হোন','Nearby donation drives':'কাছের রক্তদান শিবির','Verified emergency calls':'যাচাইকৃত জরুরি অনুরোধ','Clinical operations':'ক্লিনিক্যাল কার্যক্রম','Emergency requisitions':'জরুরি রক্তের অনুরোধ','Maternity blood bridge':'মাতৃত্ব রক্ত সহায়তা','On-site donor intake':'শিবিরে দাতা নিবন্ধন','Email access control':'ইমেল প্রবেশ নিয়ন্ত্রণ','Staff invitations':'কর্মী আমন্ত্রণ','Create drive':'শিবির তৈরি করুন','New requisition':'নতুন অনুরোধ','Refresh':'রিফ্রেশ','Show donor pass':'দাতা পাস দেখান','Health pre-check':'স্বাস্থ্য প্রাক-পরীক্ষা','Edit profile':'প্রোফাইল সম্পাদনা','Complete profile':'প্রোফাইল সম্পূর্ণ করুন','Verified response network · built for India':'যাচাইকৃত সহায়তা নেটওয়ার্ক · ভারতের জন্য','Donation history':'রক্তদানের ইতিহাস','India resources':'ভারতীয় সংস্থান','Hospital verification':'হাসপাতাল যাচাই','Drive approvals':'শিবির অনুমোদন','English':'ইংরেজি'
-  },
-  mr: {
-    'Overview':'आढावा','Nearby drives':'जवळची शिबिरे','Emergency calls':'आपत्कालीन विनंत्या','Digital pass':'डिजिटल पास','Command center':'कमांड केंद्र','QR intake':'क्यूआर नोंदणी','Donor register':'दाता नोंदणी','Certificates':'प्रमाणपत्रे','Operations':'कार्यवाही','Blood inventory':'रक्त साठा','Requisitions':'रक्त विनंत्या','Maternity bridge':'मातृत्व मदत','Drive proposals':'शिबिर प्रस्ताव','Campaign builder':'मोहीम निर्माता','Impact & ESG':'परिणाम आणि ESG','Venue logistics':'स्थळ व्यवस्था','Access control':'प्रवेश नियंत्रण','Invitations':'आमंत्रणे','Audit trail':'ऑडिट तपशील','Platform health':'प्लॅटफॉर्म स्थिती','Current workspace':'सध्याचे कार्यक्षेत्र','Workspace':'कार्यक्षेत्र','Viewing as':'भूमिका','Sign out':'साइन आउट','Sign in':'साइन इन','Become a donor':'रक्तदाता व्हा','Nearby donation drives':'जवळची रक्तदान शिबिरे','Verified emergency calls':'सत्यापित आपत्कालीन विनंत्या','Clinical operations':'वैद्यकीय कार्यवाही','Emergency requisitions':'आपत्कालीन रक्त विनंत्या','Maternity blood bridge':'मातृत्व रक्त मदत','On-site donor intake':'शिबिरातील दाता नोंदणी','Email access control':'ईमेल प्रवेश नियंत्रण','Staff invitations':'कर्मचारी आमंत्रणे','Create drive':'शिबिर तयार करा','New requisition':'नवीन विनंती','Refresh':'रीफ्रेश','Show donor pass':'दाता पास दाखवा','Health pre-check':'आरोग्य पूर्व-तपासणी','Edit profile':'प्रोफाइल संपादित करा','Complete profile':'प्रोफाइल पूर्ण करा','Verified response network · built for India':'सत्यापित मदत नेटवर्क · भारतासाठी','Donation history':'रक्तदान इतिहास','India resources':'भारत संसाधने','Hospital verification':'रुग्णालय पडताळणी','Drive approvals':'शिबिर मंजुरी','English':'इंग्रजी'
-  },
-  ta: {
-    'Overview':'கண்ணோட்டம்','Nearby drives':'அருகிலுள்ள முகாம்கள்','Emergency calls':'அவசர கோரிக்கைகள்','Digital pass':'டிஜிட்டல் பாஸ்','Command center':'கட்டளை மையம்','QR intake':'க்யூஆர் பதிவு','Donor register':'தானாளர் பதிவு','Certificates':'சான்றிதழ்கள்','Operations':'செயல்பாடுகள்','Blood inventory':'இரத்த இருப்பு','Requisitions':'இரத்த கோரிக்கைகள்','Maternity bridge':'மகப்பேறு உதவி','Drive proposals':'முகாம் முன்மொழிவுகள்','Campaign builder':'பிரச்சார உருவாக்கம்','Impact & ESG':'தாக்கம் & ESG','Venue logistics':'இட வசதிகள்','Access control':'அணுகல் கட்டுப்பாடு','Invitations':'அழைப்புகள்','Audit trail':'தணிக்கை விவரம்','Platform health':'தள நிலை','Current workspace':'தற்போதைய பணியிடம்','Workspace':'பணியிடம்','Viewing as':'பங்கு','Sign out':'வெளியேறு','Sign in':'உள்நுழை','Become a donor':'இரத்ததானி ஆகுங்கள்','Nearby donation drives':'அருகிலுள்ள இரத்ததான முகாம்கள்','Verified emergency calls':'சரிபார்க்கப்பட்ட அவசர கோரிக்கைகள்','Clinical operations':'மருத்துவ செயல்பாடுகள்','Emergency requisitions':'அவசர இரத்த கோரிக்கைகள்','Maternity blood bridge':'மகப்பேறு இரத்த உதவி','On-site donor intake':'முகாமில் தானாளர் பதிவு','Email access control':'மின்னஞ்சல் அணுகல் கட்டுப்பாடு','Staff invitations':'பணியாளர் அழைப்புகள்','Create drive':'முகாம் உருவாக்கு','New requisition':'புதிய கோரிக்கை','Refresh':'புதுப்பி','Show donor pass':'தானாளர் பாஸ் காட்டு','Health pre-check':'உடல்நல முன் பரிசோதனை','Edit profile':'சுயவிவரம் திருத்து','Complete profile':'சுயவிவரம் நிறைவு செய்','Verified response network · built for India':'சரிபார்க்கப்பட்ட உதவி வலையமைப்பு · இந்தியாவிற்காக','Donation history':'இரத்ததான வரலாறு','India resources':'இந்திய வளங்கள்','Hospital verification':'மருத்துவமனை சரிபார்ப்பு','Drive approvals':'முகாம் அனுமதிகள்','English':'ஆங்கிலம்'
-  },
-  kn: {
-    'Overview':'ಅವಲೋಕನ','Nearby drives':'ಹತ್ತಿರದ ಶಿಬಿರಗಳು','Emergency calls':'ತುರ್ತು ವಿನಂತಿಗಳು','Digital pass':'ಡಿಜಿಟಲ್ ಪಾಸ್','Command center':'ಕಮಾಂಡ್ ಕೇಂದ್ರ','QR intake':'ಕ್ಯೂಆರ್ ನೋಂದಣಿ','Donor register':'ದಾನಿಗಳ ನೋಂದಣಿ','Certificates':'ಪ್ರಮಾಣಪತ್ರಗಳು','Operations':'ಕಾರ್ಯಾಚರಣೆಗಳು','Blood inventory':'ರಕ್ತ ಸಂಗ್ರಹ','Requisitions':'ರಕ್ತ ವಿನಂತಿಗಳು','Maternity bridge':'ಹೆರಿಗೆ ಸಹಾಯ','Drive proposals':'ಶಿಬಿರ ಪ್ರಸ್ತಾವನೆಗಳು','Campaign builder':'ಅಭಿಯಾನ ನಿರ್ಮಾಣ','Impact & ESG':'ಪರಿಣಾಮ & ESG','Venue logistics':'ಸ್ಥಳ ವ್ಯವಸ್ಥೆ','Access control':'ಪ್ರವೇಶ ನಿಯಂತ್ರಣ','Invitations':'ಆಮಂತ್ರಣಗಳು','Audit trail':'ಲೆಕ್ಕಪರಿಶೋಧನೆ','Platform health':'ವೇದಿಕೆ ಸ್ಥಿತಿ','Current workspace':'ಪ್ರಸ್ತುತ ಕಾರ್ಯಸ್ಥಳ','Workspace':'ಕಾರ್ಯಸ್ಥಳ','Viewing as':'ಪಾತ್ರ','Sign out':'ಸೈನ್ ಔಟ್','Sign in':'ಸೈನ್ ಇನ್','Become a donor':'ರಕ್ತದಾನಿ ಆಗಿ','Nearby donation drives':'ಹತ್ತಿರದ ರಕ್ತದಾನ ಶಿಬಿರಗಳು','Verified emergency calls':'ಪರಿಶೀಲಿಸಿದ ತುರ್ತು ವಿನಂತಿಗಳು','Clinical operations':'ವೈದ್ಯಕೀಯ ಕಾರ್ಯಾಚರಣೆಗಳು','Emergency requisitions':'ತುರ್ತು ರಕ್ತ ವಿನಂತಿಗಳು','Maternity blood bridge':'ಹೆರಿಗೆ ರಕ್ತ ಸಹಾಯ','On-site donor intake':'ಶಿಬಿರದಲ್ಲಿ ದಾನಿ ನೋಂದಣಿ','Email access control':'ಇಮೇಲ್ ಪ್ರವೇಶ ನಿಯಂತ್ರಣ','Staff invitations':'ಸಿಬ್ಬಂದಿ ಆಮಂತ್ರಣಗಳು','Create drive':'ಶಿಬಿರ ರಚಿಸಿ','New requisition':'ಹೊಸ ವಿನಂತಿ','Refresh':'ರಿಫ್ರೆಶ್','Show donor pass':'ದಾನಿ ಪಾಸ್ ತೋರಿಸಿ','Health pre-check':'ಆರೋಗ್ಯ ಪೂರ್ವಪರಿಶೀಲನೆ','Edit profile':'ಪ್ರೊಫೈಲ್ ತಿದ್ದು','Complete profile':'ಪ್ರೊಫೈಲ್ ಪೂರ್ಣಗೊಳಿಸಿ','Verified response network · built for India':'ಪರಿಶೀಲಿಸಿದ ಸಹಾಯ ಜಾಲ · ಭಾರತಕ್ಕಾಗಿ','Donation history':'ರಕ್ತದಾನ ಇತಿಹಾಸ','India resources':'ಭಾರತ ಸಂಪನ್ಮೂಲಗಳು','Hospital verification':'ಆಸ್ಪತ್ರೆ ಪರಿಶೀಲನೆ','Drive approvals':'ಶಿಬಿರ ಅನುಮೋದನೆಗಳು','English':'ಇಂಗ್ಲಿಷ್'
-  },
-  ml: {
-    'Overview':'അവലോകനം','Nearby drives':'സമീപ ക്യാമ്പുകൾ','Emergency calls':'അടിയന്തര അഭ്യർത്ഥനകൾ','Digital pass':'ഡിജിറ്റൽ പാസ്','Command center':'കമാൻഡ് കേന്ദ്രം','QR intake':'ക്യുആർ രജിസ്ട്രേഷൻ','Donor register':'ദാതാക്കളുടെ രജിസ്റ്റർ','Certificates':'സർട്ടിഫിക്കറ്റുകൾ','Operations':'പ്രവർത്തനങ്ങൾ','Blood inventory':'രക്ത ശേഖരം','Requisitions':'രക്ത അഭ്യർത്ഥനകൾ','Maternity bridge':'പ്രസവ സഹായം','Drive proposals':'ക്യാമ്പ് നിർദ്ദേശങ്ങൾ','Campaign builder':'പ്രചാരണ നിർമ്മാണം','Impact & ESG':'സ്വാധീനം & ESG','Venue logistics':'വേദി ക്രമീകരണം','Access control':'പ്രവേശന നിയന്ത്രണം','Invitations':'ക്ഷണങ്ങൾ','Audit trail':'ഓഡിറ്റ് വിവരം','Platform health':'പ്ലാറ്റ്ഫോം നില','Current workspace':'നിലവിലെ പ്രവർത്തനസ്ഥലം','Workspace':'പ്രവർത്തനസ്ഥലം','Viewing as':'പങ്ക്','Sign out':'സൈൻ ഔട്ട്','Sign in':'സൈൻ ഇൻ','Become a donor':'രക്തദാതാവാകൂ','Nearby donation drives':'സമീപ രക്തദാന ക്യാമ്പുകൾ','Verified emergency calls':'സ്ഥിരീകരിച്ച അടിയന്തര അഭ്യർത്ഥനകൾ','Clinical operations':'ക്ലിനിക്കൽ പ്രവർത്തനങ്ങൾ','Emergency requisitions':'അടിയന്തര രക്ത അഭ്യർത്ഥനകൾ','Maternity blood bridge':'പ്രസവ രക്ത സഹായം','On-site donor intake':'ക്യാമ്പിലെ ദാതാ രജിസ്ട്രേഷൻ','Email access control':'ഇമെയിൽ പ്രവേശന നിയന്ത്രണം','Staff invitations':'സ്റ്റാഫ് ക്ഷണങ്ങൾ','Create drive':'ക്യാമ്പ് സൃഷ്ടിക്കുക','New requisition':'പുതിയ അഭ്യർത്ഥന','Refresh':'പുതുക്കുക','Show donor pass':'ദാതാ പാസ് കാണിക്കുക','Health pre-check':'ആരോഗ്യ മുൻപരിശോധന','Edit profile':'പ്രൊഫൈൽ തിരുത്തുക','Complete profile':'പ്രൊഫൈൽ പൂർത്തിയാക്കുക','Verified response network · built for India':'സ്ഥിരീകരിച്ച സഹായ ശൃംഖല · ഇന്ത്യയ്ക്കായി','Donation history':'രക്തദാന ചരിത്രം','India resources':'ഇന്ത്യൻ വിഭവങ്ങൾ','Hospital verification':'ആശുപത്രി പരിശോധന','Drive approvals':'ക്യാമ്പ് അംഗീകാരങ്ങൾ','English':'ഇംഗ്ലീഷ്'
-  }
+const supported = new Set(languages.map(([code]) => code));
+const loaders = {
+  hi: () => import('./locales/hi.json'),
+  te: () => import('./locales/te.json'),
+  bn: () => import('./locales/bn.json'),
+  mr: () => import('./locales/mr.json'),
+  ta: () => import('./locales/ta.json'),
+  kn: () => import('./locales/kn.json'),
+  ml: () => import('./locales/ml.json')
 };
+export const catalogs = { en };
+
+export async function loadLocale(locale) {
+  const normalized = supported.has(locale) ? locale : 'en';
+  if (!catalogs[normalized] && loaders[normalized]) {
+    catalogs[normalized] = (await loaders[normalized]()).default;
+  }
+  return normalized;
+}
 
 export function getLocale() {
   let value = 'en';
   try { value = localStorage.getItem('raktflow-locale') || 'en'; } catch { /* restricted storage */ }
-  return languages.some(([code]) => code === value) ? value : 'en';
+  return supported.has(value) ? value : 'en';
 }
 
 export function setLocale(locale) {
-  try { localStorage.setItem('raktflow-locale', locale); } catch { /* restricted storage */ }
-  document.documentElement.lang = locale;
+  const normalized = supported.has(locale) ? locale : 'en';
+  try { localStorage.setItem('raktflow-locale', normalized); } catch { /* restricted storage */ }
+  document.documentElement.lang = normalized;
 }
 
-export function t(value, locale = getLocale()) {
-  return translations[locale]?.[value] || value;
+export function tr(key, variables = {}, locale = getLocale()) {
+  const catalog = catalogs[locale] || catalogs.en;
+  const value = catalog[key] || catalogs.en[key] || key;
+  return Object.entries(variables).reduce(
+    (message, [name, replacement]) => message.replaceAll(`{${name}}`, String(replacement)),
+    value
+  );
 }
 
-export function applyTranslations(root, locale = getLocale()) {
-  document.documentElement.lang = locale;
-  if (locale === 'en' || !root) return;
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  const nodes = [];
-  while (walker.nextNode()) nodes.push(walker.currentNode);
-  for (const node of nodes) {
-    const value = node.nodeValue;
-    const trimmed = value.trim();
-    const translated = translations[locale]?.[trimmed];
-    if (translated) node.nodeValue = value.replace(trimmed, translated);
-  }
+export function translationCoverage() {
+  const englishKeys = Object.keys(catalogs.en).sort();
+  return Object.fromEntries(
+    Object.entries(catalogs).map(([locale, catalog]) => [
+      locale,
+      {
+        missing: englishKeys.filter(key => !catalog[key]),
+        extra: Object.keys(catalog).filter(key => !catalogs.en[key]).sort(),
+        total: Object.keys(catalog).length
+      }
+    ])
+  );
 }

@@ -1,7 +1,7 @@
 {
   "name": "raktflow-web",
   "private": true,
-  "version": "0.1.0",
+  "version": "3.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.16.0",
+    "eslint": "^9.39.5",
     "vite": "^7.1.1",
     "vite-plugin-pwa": "^1.0.3",
     "vitest": "^3.2.4",

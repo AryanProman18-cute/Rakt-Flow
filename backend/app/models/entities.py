@@ -74,6 +74,9 @@ class Invitation(Base, UUIDPrimaryKey, Timestamped):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    delivery_status: Mapped[str] = mapped_column(String(40), default="NOT_SENT", nullable=False)
+    delivery_provider_id: Mapped[str | None] = mapped_column(String(160))
+    last_delivery_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class DonorProfile(Base, UUIDPrimaryKey, Timestamped):
@@ -115,6 +118,18 @@ class HospitalProfile(Base, UUIDPrimaryKey, Timestamped):
     rejection_reason: Mapped[str | None] = mapped_column(Text)
 
 
+class HospitalApplicationDocument(Base, UUIDPrimaryKey, Timestamped):
+    __tablename__ = "hospital_application_documents"
+    hospital_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("hospital_profiles.id", ondelete="CASCADE"))
+    uploader_user_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
+    document_kind: Mapped[str] = mapped_column(String(40), default="REGISTRATION_EVIDENCE")
+    original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    encrypted_content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    sha256: Mapped[bytes] = mapped_column(LargeBinary(32), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
 class Venue(Base, UUIDPrimaryKey, Timestamped):
     __tablename__ = "venues"
     owner_user_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("users.id"))
@@ -154,6 +169,39 @@ class DriveProposal(Base, UUIDPrimaryKey, Timestamped):
     responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     response_note: Mapped[str | None] = mapped_column(Text)
     resulting_drive_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("drives.id"))
+
+
+class Campaign(Base, UUIDPrimaryKey, Timestamped):
+    __tablename__ = "campaigns"
+    drive_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("drives.id", ondelete="CASCADE"))
+    organizer_user_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
+    slug: Mapped[str] = mapped_column(String(80), nullable=False)
+    title: Mapped[str] = mapped_column(String(150), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    poster_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+    status: Mapped[str] = mapped_column(String(20), default="DRAFT", nullable=False)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class CampaignVisit(Base, UUIDPrimaryKey, Timestamped):
+    __tablename__ = "campaign_visits"
+    __table_args__ = (UniqueConstraint("campaign_id", "visitor_hash", name="uq_campaign_visitor"),)
+    campaign_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"))
+    visitor_hash: Mapped[bytes] = mapped_column(LargeBinary(32), nullable=False)
+    first_visited_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_visited_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    visit_count: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+
+
+class DriveRegistration(Base, UUIDPrimaryKey, Timestamped):
+    __tablename__ = "drive_registrations"
+    __table_args__ = (UniqueConstraint("drive_id", "donor_id", name="uq_drive_registration"),)
+    drive_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("drives.id", ondelete="CASCADE"))
+    donor_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("donor_profiles.id", ondelete="CASCADE"))
+    source_campaign_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="SET NULL"))
+    status: Mapped[str] = mapped_column(String(20), default="REGISTERED", nullable=False)
+    registered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    checked_in_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class BloodInventory(Base, UUIDPrimaryKey, Timestamped):
@@ -201,7 +249,10 @@ class Screening(Base, UUIDPrimaryKey, Timestamped):
     flags: Mapped[list[str]] = mapped_column(JSONB, default=list)
     attested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     valid_until: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    review_status: Mapped[str] = mapped_column(String(24), default="PENDING", nullable=False)
     reviewed_by_user_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("users.id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    review_note: Mapped[str | None] = mapped_column(Text)
 
 
 class CheckIn(Base, UUIDPrimaryKey, Timestamped):

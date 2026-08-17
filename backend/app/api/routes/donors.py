@@ -24,6 +24,7 @@ from app.models.entities import (
 )
 from app.schemas.api import DonorPassResponse
 from app.services.audit import append_audit_event
+from app.services.clinical_safety import current_screening_is_approved
 from app.services.tokens import DonorPassIssuer
 
 router = APIRouter(prefix="/donors", tags=["donors"])
@@ -41,16 +42,21 @@ async def donor_pass(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> DonorPassResponse:
     donor = await session.scalar(select(DonorProfile).where(DonorProfile.user_id == user.id))
-    if donor is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Donor profile not found")
+    if donor is None or donor.profile_status != "COMPLETE":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Complete your donor profile before requesting a pass")
+    if donor.blood_type == "UNKNOWN":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Select your self-reported blood group before requesting a pass")
     screening = await session.scalar(
         select(Screening)
-        .where(Screening.donor_id == donor.id, Screening.valid_until > datetime.now(UTC))
+        .where(Screening.donor_id == donor.id)
         .order_by(Screening.created_at.desc())
         .limit(1)
     )
-    if screening is None:
-        raise HTTPException(status.HTTP_409_CONFLICT, "A current pre-screening is required")
+    if not current_screening_is_approved(screening):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "The latest current pre-check must be approved by an authorized clinical reviewer",
+        )
     issued = DonorPassIssuer(settings.token_signing_secret).issue(str(donor.id), str(screening.id))
     return DonorPassResponse(**issued)
 

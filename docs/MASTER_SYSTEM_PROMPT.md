@@ -26,7 +26,7 @@ The product exists to reduce platelet wastage, unverified-request noise, rare-ph
 - Frontend: semantic HTML5, accessible CSS using the specified Tailwind-compatible tokens, modular ESNext, Vite, and Workbox PWA support. A framework may be used only if explicitly requested; otherwise prefer maintainable vanilla modules.
 - Backend: Python 3.12+, FastAPI, Pydantic v2, SQLAlchemy 2 async, asyncpg.
 - Authoritative database: Neon PostgreSQL with PostGIS.
-- Authentication: Firebase Auth using email magic links and Google sign-in. Do not implement SMS authentication.
+- Authentication: Firebase Auth using email/password with mandatory one-time email verification, password recovery, and Google sign-in. Do not implement SMS authentication.
 - Real-time projection: Firestore for recipient-scoped, short-lived operational events only.
 - Hosting target: Firebase Hosting for static assets; Render-compatible container for API.
 - Testing: Pytest, deterministic pure-service tests, API authorization/state tests, and frontend build/accessibility checks.

@@ -18,6 +18,7 @@ from app.models.entities import (
     DonationRecord,
     DonorProfile,
     Drive,
+    DriveRegistration,
     Screening,
     User,
 )
@@ -29,6 +30,7 @@ from app.schemas.accounts import (
     ScanPassRequest,
 )
 from app.services.audit import append_audit_event
+from app.services.clinical_safety import current_screening_is_approved
 from app.services.privacy import PrivacyVault
 from app.services.tokens import DonorPassIssuer
 
@@ -51,6 +53,20 @@ async def _authorize_drive(session: AsyncSession, actor: Actor, staff: User, dri
     if drive.status not in {"APPROVED", "ACTIVE"}:
         raise HTTPException(status.HTTP_409_CONFLICT, "Drive must be approved before donor intake")
     return drive
+
+
+async def _mark_registration_checked_in(
+    session: AsyncSession, *, drive_id: UUID, donor_id: UUID, checked_in_at: datetime
+) -> None:
+    registration = await session.scalar(
+        select(DriveRegistration).where(
+            DriveRegistration.drive_id == drive_id,
+            DriveRegistration.donor_id == donor_id,
+        ).with_for_update()
+    )
+    if registration is not None:
+        registration.status = "CHECKED_IN"
+        registration.checked_in_at = checked_in_at
 
 
 async def _intake_view(
@@ -92,15 +108,14 @@ async def scan_donor_pass(
     except (jwt.InvalidTokenError, ValueError, KeyError) as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Pass is invalid or expired") from exc
     profile = await session.scalar(select(DonorProfile).where(DonorProfile.id == donor_id))
-    screening = await session.scalar(
-        select(Screening).where(
-            Screening.id == screening_id,
-            Screening.donor_id == donor_id,
-            Screening.valid_until > datetime.now(UTC),
-        )
+    latest_screening = await session.scalar(
+        select(Screening)
+        .where(Screening.donor_id == donor_id)
+        .order_by(Screening.created_at.desc())
+        .limit(1)
     )
-    if profile is None or screening is None:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Donor profile or screening is no longer current")
+    if profile is None or not current_screening_is_approved(latest_screening, expected_id=screening_id):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Donor profile or approved screening is no longer current")
     existing = await session.scalar(select(CheckIn).where(CheckIn.idempotency_key == payload.idempotency_key))
     if existing:
         return await _intake_view(session, existing, profile, existing.checkin_method)
@@ -116,6 +131,9 @@ async def scan_donor_pass(
     )
     session.add(checkin)
     await session.flush()
+    await _mark_registration_checked_in(
+        session, drive_id=payload.drive_id, donor_id=profile.id, checked_in_at=checkin.scanned_at
+    )
     await append_audit_event(session, actor_uid=actor.uid, action="DONOR_QR_CHECKED_IN", resource_type="checkin", resource_id=checkin.id, metadata={"drive_id": str(payload.drive_id)})
     await session.commit()
     return await _intake_view(session, checkin, profile, "QR")
@@ -134,6 +152,17 @@ async def manual_checkin(
     )
     if profile is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Donor reference not found")
+    approved_screening = await session.scalar(
+        select(Screening)
+        .where(Screening.donor_id == profile.id)
+        .order_by(Screening.created_at.desc())
+        .limit(1)
+    )
+    if not current_screening_is_approved(approved_screening):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "The donor needs a current pre-check approved for QR/intake eligibility",
+        )
     existing = await session.scalar(select(CheckIn).where(CheckIn.idempotency_key == payload.idempotency_key))
     if existing:
         return await _intake_view(session, existing, profile, existing.checkin_method)
@@ -149,6 +178,9 @@ async def manual_checkin(
     )
     session.add(checkin)
     await session.flush()
+    await _mark_registration_checked_in(
+        session, drive_id=payload.drive_id, donor_id=profile.id, checked_in_at=checkin.scanned_at
+    )
     await append_audit_event(session, actor_uid=actor.uid, action="DONOR_MANUAL_CHECKED_IN", resource_type="checkin", resource_id=checkin.id, metadata={"drive_id": str(payload.drive_id)})
     await session.commit()
     return await _intake_view(session, checkin, profile, "MANUAL")

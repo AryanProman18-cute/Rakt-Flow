@@ -51,6 +51,8 @@ class DonorProfileUpsert(BaseModel):
     date_of_birth: date
     phone: str = Field(min_length=10, max_length=24)
     city: str = Field(min_length=2, max_length=100)
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
     blood_type: Literal["UNKNOWN", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "BOMBAY"] = "UNKNOWN"
     consent_to_process: bool
     emergency_notifications: bool = False
@@ -59,14 +61,20 @@ class DonorProfileUpsert(BaseModel):
 class DonorProfileView(BaseModel):
     reference_code: str
     full_name: str
+    date_of_birth: date | None
     age: int | None
+    phone: str
     phone_masked: str
     city: str | None
+    latitude: float | None = None
+    longitude: float | None = None
     blood_type: str
     profile_status: str
     email_verified: bool = True
     identity_verified: bool
     latest_screening_outcome: str | None
+    screening_review_status: str | None = None
+    screening_valid_until: datetime | None = None
 
 
 class ScreeningSubmission(BaseModel):
@@ -90,6 +98,7 @@ class ScreeningResult(BaseModel):
     outcome: Literal["PROCEED_TO_CLINICAL", "CLINICAL_REVIEW", "TEMPORARY_DEFERRAL_SUGGESTED"]
     flags: list[str]
     valid_until: datetime
+    review_status: Literal["PENDING", "APPROVED", "DECLINED"] = "PENDING"
     message: str
 
 
