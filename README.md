@@ -6,7 +6,7 @@ RaktFlow is a responsive, multi-party PWA for donors, organizing bodies, hospita
 
 > **Important:** This is a pre-production engineering baseline, not a certified medical device or a deployed clinical service. Blood compatibility, donor eligibility, emergency-release decisions, document verification, and transfusion remain under qualified clinical authority. A free-tier deployment cannot provide a mission-critical SLA.
 
-## Functional v2 upgrade
+## Functional v1 upgrade
 
 The project now starts with a polished public landing page and includes a connected production core:
 
