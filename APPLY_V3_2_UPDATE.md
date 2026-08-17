@@ -41,7 +41,7 @@ Open **Render → raktflow-api → Environment**. Keep all existing values and c
 - `DATABASE_URL` points to the existing Neon database (asyncpg URL, SSL enabled)
 - `FIREBASE_PROJECT_ID`
 - `FIREBASE_CREDENTIALS_JSON` (secret, Render only)
-- `CORS_ORIGINS=https://raktflow-demo123.vercel.app` (add other exact production/custom origins comma-separated)
+- `CORS_ORIGINS=["https://raktflow-demo123.vercel.app"]` (use a JSON array; add any custom production domain as another quoted array item)
 - `TOKEN_SIGNING_SECRET` is a strong, stable secret of at least 32 characters
 - `BOOTSTRAP_ADMIN_EMAIL=chemnaam@gmail.com`
 - `PUBLIC_APP_URL=https://raktflow-demo123.vercel.app`
@@ -70,7 +70,7 @@ Open **Vercel → project → Settings → Environment Variables**. Confirm for 
 - `VITE_FIREBASE_PROJECT_ID`
 - `VITE_FIREBASE_APP_ID`
 
-Leave the Vercel Root Directory blank for this repository layout. Redeploy after saving variables. The frontend build is `npm run build` and output is `frontend/dist`.
+Leave the Vercel Root Directory blank for this repository layout. The root `vercel.json` reverse-proxies `/__/auth/*` to Firebase Hosting for cross-browser Google authentication. Add `https://raktflow-demo123.vercel.app/__/auth/handler` to the Firebase Google OAuth web client's authorized redirect URIs. Redeploy after saving variables. The frontend build is `npm run build` and output is `frontend/dist`.
 
 ## 6. Firebase checks
 

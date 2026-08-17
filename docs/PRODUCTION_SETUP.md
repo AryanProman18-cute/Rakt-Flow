@@ -117,7 +117,7 @@ https://your-render-service.onrender.com/api/v1/health
 ```text
 VITE_API_BASE_URL=https://your-render-service.onrender.com
 VITE_FIREBASE_API_KEY=<Firebase public web API key>
-VITE_FIREBASE_AUTH_DOMAIN=<project>.firebaseapp.com
+VITE_FIREBASE_AUTH_DOMAIN=raktflow-demo123.vercel.app  # same-origin proxy; hostname only
 VITE_FIREBASE_PROJECT_ID=<project ID>
 VITE_FIREBASE_APP_ID=<Firebase web app ID>
 ```

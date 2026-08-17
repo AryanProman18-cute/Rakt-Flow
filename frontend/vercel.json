@@ -4,6 +4,12 @@
   "outputDirectory": "dist",
   "cleanUrls": true,
   "trailingSlash": false,
+  "rewrites": [
+    {
+      "source": "/__/auth/:path*",
+      "destination": "https://raktflow-1.firebaseapp.com/__/auth/:path*"
+    }
+  ],
   "headers": [
     {
       "source": "/assets/(.*)",

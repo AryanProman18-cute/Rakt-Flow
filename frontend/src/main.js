@@ -7,6 +7,7 @@ import QRCode from 'qrcode';
 import { apiDownload, apiFetch, configuredApiOrigin, isApiConfigured, prewarmApi, publicApiFetch } from './api.js';
 import {
   authErrorMessage,
+  completeGoogleRedirect,
   completeLegacyMagicLink,
   isAuthConfigured,
   observeAuth,
@@ -1246,6 +1247,11 @@ if (import.meta.env.PROD) registerServiceWorker(() => toast(tr('success.title'),
   await loadPublicData();
   render();
   if (!isAuthConfigured()) return;
+  try { await completeGoogleRedirect(); }
+  catch (error) {
+    state.screen = 'landing'; render();
+    toast('Google sign-in did not finish', authErrorMessage(error), 'warning');
+  }
   if (location.href.includes('mode=signIn')) {
     try { await completeLegacyMagicLink(); }
     catch (error) { console.warn(error); }

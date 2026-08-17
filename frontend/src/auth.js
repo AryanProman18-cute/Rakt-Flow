@@ -3,13 +3,14 @@ import {
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
   getAuth,
+  getRedirectResult,
   isSignInWithEmailLink,
   onAuthStateChanged,
   sendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithEmailLink,
-  signInWithPopup,
+  signInWithRedirect,
   signOut
 } from 'firebase/auth';
 
@@ -116,10 +117,25 @@ export async function completeLegacyMagicLink(email = '') {
   return result.user;
 }
 
-export function signInWithGoogle() {
+function googleProvider() {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
-  return signInWithPopup(getRaktFlowAuth(), provider);
+  return provider;
+}
+
+/**
+ * Redirect mode avoids browser popup blockers. In production the configured
+ * authDomain is the Vercel application domain and Vercel transparently proxies
+ * /__/auth/* to Firebase Hosting, keeping Firebase's temporary auth state
+ * first-party in Safari, Firefox, Brave, and other partitioning browsers.
+ */
+export function signInWithGoogle() {
+  return signInWithRedirect(getRaktFlowAuth(), googleProvider());
+}
+
+export async function completeGoogleRedirect() {
+  const result = await getRedirectResult(getRaktFlowAuth());
+  return result?.user || null;
 }
 
 export function observeAuth(callback) {
