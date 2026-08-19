@@ -1,4 +1,4 @@
-# RaktFlow V3.3
+# RaktFlow 
 
 **Verified blood-donation coordination and accountable blood logistics for India.**
 
@@ -6,7 +6,7 @@ RaktFlow is a responsive PWA connecting five controlled workspaces: Donor, Organ
 
 > RaktFlow is not a blood bank, emergency service, compatibility test, clinical decision system, or medical clearance. Qualified professionals remain responsible for donor eligibility, collection-time testing, blood safety, compatibility, release, transport, and transfusion. Free-tier hosting does not provide a mission-critical SLA.
 
-## V3.3 capabilities
+## capabilities
 
 - Verified-email donor registration with Donor-only access by default
 - Invitation-only, multi-role staff authorization controlled by Super Admin
@@ -137,4 +137,4 @@ For an existing deployment, start with [`APPLY_V3_3_UPDATE.md`](APPLY_V3_3_UPDAT
 - [API contract](docs/API.md)
 - [Specification traceability](docs/SPEC_TRACEABILITY.md)
 
-Contact: `chemnaam@gmail.com` · `+91 9908840322`
+Contact: `chemnaam@gmail.com` 
