@@ -68,6 +68,9 @@ class VerificationDecision(BaseModel):
     reason_code: str = Field(min_length=3, max_length=80)
     physician_registration_confirmed: bool
     component_confirmed: bool
+    document_review_confirmed: bool = False
+    ocr_mismatch_resolved: bool = False
+    review_note: str = Field(default="", max_length=1000)
 
 
 class ResolveRequest(BaseModel):

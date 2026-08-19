@@ -1,0 +1,22 @@
+.settings-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+.settings-card.span-2 { grid-column:1 / -1; }
+.settings-options, .settings-workspaces { display:grid; gap:10px; }
+.settings-options { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.setting-choice, .workspace-choice { width:100%; min-height:76px; display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:12px; padding:13px; border:1px solid var(--border); border-radius:14px; color:var(--text); background:var(--surface); text-align:left; cursor:pointer; transition:border-color .18s ease,transform .18s ease,background .18s ease; }
+.setting-choice:hover, .workspace-choice:hover { transform:translateY(-1px); border-color:var(--rose-300); }
+.setting-choice.active, .workspace-choice.active { border-color:var(--rose-500); background:var(--rose-50); }
+[data-theme='dark'] .setting-choice.active, [data-theme='dark'] .workspace-choice.active { background:rgb(225 29 72 / .1); }
+.setting-choice > .icon, .workspace-choice > .icon { width:23px; height:23px; color:var(--rose-600); }
+.setting-choice span, .workspace-choice span { min-width:0; }
+.setting-choice strong, .workspace-choice strong { display:block; font-size:12px; }
+.setting-choice small, .workspace-choice small { display:block; margin-top:3px; color:var(--muted); font-size:9px; }
+.settings-workspaces { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.settings-account { display:grid; grid-template-columns:auto minmax(0,1fr); align-items:center; gap:12px; }
+.settings-account > div strong, .settings-account > div small { display:block; overflow-wrap:anywhere; }
+.settings-account > div small { margin-top:3px; color:var(--muted); font-size:9px; }
+.settings-account .btn { grid-column:1 / -1; width:100%; }
+.setting-notes { display:grid; gap:10px; }
+.setting-notes p { display:flex; align-items:flex-start; gap:8px; margin:0; color:var(--muted); font-size:10px; line-height:1.55; }
+.setting-notes .icon { flex:0 0 auto; color:var(--rose-600); }
+@media (max-width:800px) { .settings-workspaces { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width:600px) { .settings-grid { grid-template-columns:1fr; } .settings-card.span-2 { grid-column:1; } .settings-options,.settings-workspaces { grid-template-columns:1fr; } .setting-choice,.workspace-choice { min-height:68px; } }

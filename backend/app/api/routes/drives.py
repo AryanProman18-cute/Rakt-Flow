@@ -12,17 +12,22 @@ from app.api.deps import database_user
 from app.core.database import get_session
 from app.core.security import Actor, require_roles
 from app.models.entities import (
+    BloodComponent,
+    BloodRequest,
     Campaign,
     CheckIn,
     DonationRecord,
     DonorProfile,
     Drive,
+    DriveBloodQuota,
     DriveProposal,
     DriveRegistration,
+    RequestStatus,
+    Screening,
     User,
 )
 from app.schemas.accounts import DriveCreate, DriveStatusUpdate
-from app.schemas.integrated import DriveRegistrationCreate
+from app.schemas.integrated import DriveQuotaUpdate, DriveRegistrationCreate
 from app.schemas.operations import DriveProposalCreate, DriveUpdate, ProposalDecision
 from app.services.audit import append_audit_event
 
@@ -105,6 +110,115 @@ async def _owned_drive(session: AsyncSession, actor: Actor, user: User, drive_id
     return drive
 
 
+def quota_view(quota: DriveBloodQuota) -> dict:
+    return {
+        "id": str(quota.id), "drive_id": str(quota.drive_id), "blood_type": quota.blood_type,
+        "max_registrations": quota.max_registrations,
+        "source_request_id": str(quota.source_request_id) if quota.source_request_id else None,
+        "rationale": quota.rationale, "active": quota.active,
+    }
+
+
+@router.get("/{drive_id}/quotas")
+async def drive_quotas(
+    drive_id: UUID,
+    actor: Annotated[Actor, Depends(require_roles("ROLE_ORGANIZER"))],
+    user: Annotated[User, Depends(database_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[dict]:
+    await _owned_drive(session, actor, user, drive_id)
+    rows = (await session.scalars(
+        select(DriveBloodQuota).where(DriveBloodQuota.drive_id == drive_id)
+        .order_by(DriveBloodQuota.blood_type)
+    )).all()
+    return [quota_view(row) for row in rows]
+
+
+@router.put("/{drive_id}/quotas")
+async def update_drive_quotas(
+    drive_id: UUID,
+    payload: DriveQuotaUpdate,
+    actor: Annotated[Actor, Depends(require_roles("ROLE_ORGANIZER"))],
+    user: Annotated[User, Depends(database_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[dict]:
+    drive = await _owned_drive(session, actor, user, drive_id)
+    if drive.status in {"COMPLETED", "CANCELLED"}:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Closed drives cannot change booking quotas")
+    rows = list((await session.scalars(
+        select(DriveBloodQuota).where(DriveBloodQuota.drive_id == drive.id).with_for_update()
+    )).all())
+    by_type = {row.blood_type: row for row in rows}
+    submitted = set()
+    for item in payload.quotas:
+        blood_type = item.blood_type.upper()
+        submitted.add(blood_type)
+        row = by_type.get(blood_type)
+        if row is None:
+            row = DriveBloodQuota(drive_id=drive.id, blood_type=blood_type, max_registrations=item.max_registrations)
+            session.add(row)
+            rows.append(row)
+        if item.source_request_id:
+            source_request = await session.get(BloodRequest, item.source_request_id)
+            if (
+                source_request is None or source_request.status != RequestStatus.VERIFIED
+                or source_request.expires_at <= datetime.now(UTC)
+            ):
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Quota links require an active verified facility need")
+            if source_request.blood_type != blood_type:
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Quota blood group must match the linked verified need")
+        row.max_registrations = item.max_registrations
+        row.source_request_id = item.source_request_id
+        row.rationale = item.rationale.strip() or None
+        row.active = item.active
+    for row in rows:
+        if row.blood_type not in submitted:
+            row.active = False
+    await append_audit_event(
+        session, actor_uid=actor.uid, action="DRIVE_BLOOD_QUOTAS_UPDATED",
+        resource_type="drive", resource_id=drive.id,
+        metadata={"blood_types": sorted(submitted)},
+    )
+    await session.commit()
+    return [quota_view(row) for row in sorted(rows, key=lambda value: value.blood_type)]
+
+
+@router.get("/{drive_id}/quota-recommendations")
+async def quota_recommendations(
+    drive_id: UUID,
+    actor: Annotated[Actor, Depends(require_roles("ROLE_ORGANIZER"))],
+    user: Annotated[User, Depends(database_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[dict]:
+    drive = await _owned_drive(session, actor, user, drive_id)
+    groups = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "BOMBAY"]
+    results = []
+    for blood_type in groups:
+        need = int(await session.scalar(
+            select(func.coalesce(func.sum(BloodRequest.units_needed), 0)).where(
+                BloodRequest.status == RequestStatus.VERIFIED,
+                BloodRequest.expires_at > datetime.now(UTC),
+                BloodRequest.blood_type == blood_type,
+            )
+        ) or 0)
+        available = int(await session.scalar(
+            select(func.count()).select_from(BloodComponent).where(
+                BloodComponent.blood_type == blood_type,
+                BloodComponent.status == "AVAILABLE",
+                BloodComponent.expires_at > datetime.now(UTC),
+            )
+        ) or 0)
+        baseline = max(1, round(drive.target_units / 8))
+        suggested = max(0, min(drive.target_units, need - max(available, 0))) if need else baseline
+        results.append({
+            "blood_type": blood_type, "verified_need_units": need,
+            "available_inventory_units": max(available, 0),
+            "suggested_max_registrations": suggested,
+            "advisory_only": True,
+        })
+    return results
+
+
 @router.get("/registrations/mine")
 async def my_drive_registrations(
     _actor: Annotated[Actor, Depends(require_roles("ROLE_DONOR"))],
@@ -153,6 +267,41 @@ async def register_for_drive(
         raise HTTPException(status.HTTP_409_CONFLICT, "Complete your donor profile before registering")
     if donor.blood_type == "UNKNOWN":
         raise HTTPException(status.HTTP_409_CONFLICT, "Select your self-reported blood group before registering")
+    screening = await session.scalar(
+        select(Screening).where(Screening.donor_id == donor.id)
+        .order_by(Screening.created_at.desc()).limit(1)
+    )
+    if screening is None or screening.valid_until <= datetime.now(UTC):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Complete a current donor pre-check before booking a drive")
+    if screening.eligible_on and screening.eligible_on > datetime.now(UTC).date():
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"The pre-check countdown allows a new booking from {screening.eligible_on.isoformat()}",
+        )
+    if screening.outcome == "TEMPORARY_DEFERRAL_SUGGESTED" and screening.review_status != "APPROVED":
+        raise HTTPException(status.HTTP_409_CONFLICT, "A temporary-deferral pre-check must be reviewed before booking")
+    quota = await session.scalar(
+        select(DriveBloodQuota).where(
+            DriveBloodQuota.drive_id == drive.id,
+            DriveBloodQuota.blood_type == donor.blood_type,
+            DriveBloodQuota.active.is_(True),
+        )
+    )
+    if quota:
+        registered = int(await session.scalar(
+            select(func.count()).select_from(DriveRegistration).join(
+                DonorProfile, DonorProfile.id == DriveRegistration.donor_id
+            ).where(
+                DriveRegistration.drive_id == drive.id,
+                DriveRegistration.status != "CANCELLED",
+                DonorProfile.blood_type == donor.blood_type,
+            )
+        ) or 0)
+        if registered >= quota.max_registrations:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"The current {donor.blood_type} booking quota is full; choose another approved drive",
+            )
     campaign = None
     if payload.campaign_id:
         campaign = await session.scalar(
@@ -531,6 +680,44 @@ async def my_proposals(
         statement = statement.where(*([filters[0] | filters[1]] if len(filters) == 2 else filters))
     proposals = (await session.scalars(statement)).all()
     return [proposal_view(proposal) for proposal in proposals]
+
+
+@router.get("/proposals/host-impact")
+async def host_proposal_impact(
+    actor: Annotated[Actor, Depends(require_roles("ROLE_HOST_VENUE"))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[dict]:
+    proposals = (await session.scalars(
+        select(DriveProposal).where(
+            func.lower(DriveProposal.host_email) == actor.email.lower(),
+            DriveProposal.resulting_drive_id.is_not(None),
+        ).order_by(DriveProposal.starts_at.desc()).limit(250)
+    )).all()
+    results = []
+    for proposal in proposals:
+        drive_id = proposal.resulting_drive_id
+        registrations = int(await session.scalar(
+            select(func.count()).select_from(DriveRegistration).where(
+                DriveRegistration.drive_id == drive_id,
+                DriveRegistration.status != "CANCELLED",
+            )
+        ) or 0)
+        checkins = int(await session.scalar(
+            select(func.count()).select_from(CheckIn).where(CheckIn.drive_id == drive_id)
+        ) or 0)
+        units = int(await session.scalar(
+            select(func.count()).select_from(DonationRecord).where(
+                DonationRecord.drive_id == drive_id
+            )
+        ) or 0)
+        results.append({
+            "proposal_id": str(proposal.id), "drive_id": str(drive_id),
+            "drive_name": proposal.proposed_name, "venue_name": proposal.venue_name,
+            "starts_at": proposal.starts_at, "registrations": registrations,
+            "checkins": checkins, "units_logged": units,
+            "privacy_notice": "Aggregate host impact only; no donor identity or health data is included.",
+        })
+    return results
 
 
 @router.post("/proposals/{proposal_id}/decision")

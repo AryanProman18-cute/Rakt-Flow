@@ -2,6 +2,8 @@ import './styles.css';
 import './v32-components.css';
 import './map-adapter.css';
 import './evidence.css';
+import './settings.css';
+import './logistics.css';
 import QRCode from 'qrcode';
 
 import { apiDownload, apiFetch, configuredApiOrigin, isApiConfigured, prewarmApi, publicApiFetch } from './api.js';
@@ -65,23 +67,23 @@ function icon(name, cls = '') {
 const roleConfig = {
   donor: {
     claim: 'ROLE_DONOR', label: 'role.donor', icon: 'droplet', landing: 'home',
-    nav: [['home','nav.home','home'],['drives','nav.drives','calendar'],['needs','nav.needs','alert'],['history','nav.history','file'],['pass','nav.pass','qr']]
+    nav: [['home','nav.home','home'],['drives','nav.drives','calendar'],['needs','nav.needs','alert'],['history','nav.history','file'],['pass','nav.pass','qr'],['settings','nav.settings','settings']]
   },
   organizer: {
     claim: 'ROLE_ORGANIZER', label: 'role.organizer', icon: 'users', landing: 'overview',
-    nav: [['overview','nav.overview','home'],['drives','nav.manageDrives','calendar'],['campaigns','nav.campaigns','link'],['intake','nav.intake','scan'],['roster','nav.roster','users'],['reconcile','nav.reconciliation','check']]
+    nav: [['overview','nav.overview','home'],['drives','nav.manageDrives','calendar'],['campaigns','nav.campaigns','link'],['intake','nav.intake','scan'],['roster','nav.roster','users'],['reconcile','nav.reconciliation','check'],['settings','nav.settings','settings']]
   },
   hospital: {
     claim: 'ROLE_HOSPITAL', label: 'role.hospital', icon: 'hospital', landing: 'overview',
-    nav: [['overview','nav.overview','home'],['clinical','nav.clinicalReview','shield'],['inventory','nav.inventory','inventory'],['requests','nav.requests','file']]
+    nav: [['overview','nav.overview','home'],['clinical','nav.clinicalReview','shield'],['inventory','nav.inventory','inventory'],['components','nav.components','droplet'],['requests','nav.requests','file'],['settings','nav.settings','settings']]
   },
   venue: {
     claim: 'ROLE_HOST_VENUE', label: 'role.venue', icon: 'building', landing: 'proposals',
-    nav: [['proposals','nav.proposals','calendar'],['impact','nav.impact','chart']]
+    nav: [['proposals','nav.proposals','calendar'],['impact','nav.impact','chart'],['settings','nav.settings','settings']]
   },
   admin: {
     claim: 'ROLE_SUPER_ADMIN', label: 'role.admin', icon: 'shield', landing: 'overview',
-    nav: [['overview','nav.overview','home'],['users','nav.users','users'],['invitations','nav.invitations','mail'],['hospitals','nav.hospitals','hospital'],['drives','nav.driveApprovals','calendar'],['data','nav.platformData','inventory'],['audit','nav.audit','activity']]
+    nav: [['overview','nav.overview','home'],['users','nav.users','users'],['invitations','nav.invitations','mail'],['hospitals','nav.hospitals','hospital'],['drives','nav.driveApprovals','calendar'],['data','nav.platformData','inventory'],['privacy','nav.privacy','lock'],['audit','nav.audit','activity'],['settings','nav.settings','settings']]
   }
 };
 
@@ -104,6 +106,7 @@ const state = {
   view: 'home',
   mobileMenu: false,
   roleMenu: false,
+  online: navigator.onLine,
   loadingKey: 'loading.connecting',
   authError: '',
   authUser: null,
@@ -113,6 +116,8 @@ const state = {
   publicDrives: [],
   publicRequests: [],
   publicCentres: [],
+  facilityCentres: [],
+  verifiedNeeds: [],
   campaignLanding: null,
   campaignQuery: query.get('campaign'),
   invitationQuery: query.get('invite'),
@@ -120,11 +125,17 @@ const state = {
   registrations: [],
   donationHistory: [],
   donorAlerts: [],
+  donorUnitNotifications: [],
+  preferences: null,
+  consentHistory: [],
+  privacyRequests: [],
+  adminPrivacyRequests: [],
   drives: [],
   activeDriveId: null,
   roster: [],
   reconciliation: null,
   proposals: [],
+  hostImpact: [],
   campaigns: [],
   selectedCampaignId: null,
   campaignStats: {},
@@ -134,7 +145,14 @@ const state = {
   inventory: [],
   inventoryEvents: [],
   hospitalRequests: [],
+  rareDispatchHistory: {},
   clinicalQueue: [],
+  components: [],
+  componentExpiry: {},
+  componentPolicies: [],
+  handovers: [],
+  driveQuotas: [],
+  quotaRecommendations: [],
   adminOverview: null,
   adminUsers: [],
   invitations: [],
@@ -195,6 +213,7 @@ function friendlyError(error) {
   if (message.includes('approved') || message.includes('approval')) return tr('error.approvalRequired');
   if (message.includes('role') || message.includes('authorized')) return tr('error.permission');
   if (message.includes('email')) return tr('error.email');
+  if (Number(error?.status) >= 400 && Number(error?.status) < 500 && error?.message) return error.message;
   return tr('error.generic');
 }
 
@@ -210,7 +229,7 @@ function openModal({ title, subtitle = '', body, footer = '', wide = false, onOp
   if (!modalRoot.firstElementChild) modalReturnFocus = document.activeElement;
   if (typeof modalCleanup === 'function') modalCleanup();
   modalCleanup = null;
-  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal ${wide ? 'modal-wide' : ''}" role="dialog" aria-modal="true" aria-labelledby="modal-title"><header class="modal-head"><div><h2 id="modal-title">${esc(title)}</h2>${subtitle ? `<p>${esc(subtitle)}</p>` : ''}</div><button class="icon-btn" type="button" data-action="close-modal" aria-label="${esc(tr('common.close'))}">${icon('x')}</button></header><div class="modal-body">${body}</div>${footer ? `<footer class="modal-foot">${footer}</footer>` : ''}</section></div>`;
+  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal ${wide ? 'modal-wide' : ''}" role="dialog" aria-modal="true" aria-labelledby="modal-title"><header class="modal-head"><div><h2 id="modal-title">${esc(title)}</h2>${subtitle ? `<p>${esc(subtitle)}</p>` : ''}</div><button class="icon-btn modal-close" type="button" data-action="close-modal" aria-label="${esc(tr('common.close'))}">${icon('x')}</button></header><div class="modal-body">${body}</div>${footer ? `<footer class="modal-foot">${footer}</footer>` : ''}</section></div>`;
   document.body.style.overflow = 'hidden';
   modalRoot.querySelector('[autofocus], input:not([disabled]), select:not([disabled]), button:not([disabled])')?.focus();
   modalCleanup = onOpen?.() || null;
@@ -275,17 +294,24 @@ function allowedRoles() {
   return Object.entries(roleConfig).filter(([, config]) => roles.includes(config.claim));
 }
 
+function mobileNavigation(nav) {
+  const settingsItem = nav.find(([id]) => id === 'settings');
+  const primary = nav.filter(([id]) => id !== 'settings').slice(0, settingsItem ? 4 : 5);
+  return settingsItem ? [...primary, settingsItem] : primary;
+}
+
 function renderApp() {
   const config = roleConfig[state.role];
   const nav = config.nav;
   return `<div class="app-shell">
     <aside class="sidebar ${state.mobileMenu ? 'mobile-open' : ''}"><div class="brand"><span class="brand-mark">${icon('activity')}</span><span class="brand-copy">RaktFlow<div class="brand-sub">${esc(tr('app.verifiedNetwork'))}</div></span></div><div class="role-context"><span class="role-context-label">${esc(tr('app.currentWorkspace'))}</span><span class="role-context-value"><span class="role-dot"></span>${esc(tr(config.label))}</span></div><nav class="side-nav">${nav.map(([id,key,iconName]) => `<button class="nav-item ${state.view === id ? 'active' : ''}" data-view="${id}">${icon(iconName)}<span>${esc(tr(key))}</span></button>`).join('')}</nav><div class="sidebar-foot"><div class="network-card"><span class="network-icon">${icon('shield','icon-sm')}</span><div><strong>${esc(tr('app.secureSession'))}</strong><span>${esc(state.account?.email || '')}</span></div></div></div></aside>
-    <section class="main-shell"><header class="topbar"><button class="icon-btn mobile-menu" data-action="toggle-mobile-menu" aria-label="${esc(tr('common.menu'))}">${icon('menu')}</button><div class="page-identity"><span class="page-eyebrow">${esc(tr(config.label))}</span><h2 class="page-title">${esc(tr(nav.find(([id]) => id === state.view)?.[1] || config.label))}</h2></div><div class="top-actions"><label class="language-picker">${icon('language','icon-sm')}<select data-action="change-language" aria-label="${esc(tr('common.language'))}">${languages.map(([code,label]) => `<option value="${code}" ${state.locale === code ? 'selected' : ''}>${label}</option>`).join('')}</select></label><div class="role-switcher"><button class="btn btn-secondary role-button" data-action="toggle-role-menu">${icon(config.icon,'icon-sm')}<span>${esc(tr(config.label))}</span>${icon('chevron','icon-sm')}</button>${state.roleMenu ? `<div class="role-menu">${allowedRoles().map(([id,item]) => `<button class="role-option" data-role="${id}"><span class="role-option-icon">${icon(item.icon)}</span><span><strong>${esc(tr(item.label))}</strong></span></button>`).join('')}</div>` : ''}</div><button class="icon-btn" data-action="toggle-theme" aria-label="${esc(tr('common.theme'))}">${icon(state.theme === 'dark' ? 'sun' : 'moon')}</button><button class="account-button" data-action="open-account" aria-label="${esc(tr('common.profile'))}"><span class="avatar">${esc((state.profile?.full_name || state.account?.email || 'RF').slice(0,2).toUpperCase())}</span></button></div></header><main class="content" id="main-content">${renderRolePage()}<footer class="in-app-footer"><span>${icon('heart','icon-sm')} ${esc(tr('footer.madeInIndia'))}</span><span><a href="mailto:${esc(state.publicConfig.contact_email)}">${esc(state.publicConfig.contact_email)}</a> · <a href="tel:+91${esc(state.publicConfig.contact_phone)}">+91 ${esc(state.publicConfig.contact_phone)}</a></span></footer></main></section>
-    <nav class="mobile-bottom-nav" aria-label="${esc(tr(config.label))}">${nav.slice(0,5).map(([id,key,iconName]) => `<button class="bottom-nav-item ${state.view === id ? 'active' : ''}" data-view="${id}">${icon(iconName)}<span>${esc(tr(key))}</span></button>`).join('')}</nav>
+    <section class="main-shell"><header class="topbar"><button class="icon-btn mobile-menu" data-action="toggle-mobile-menu" aria-label="${esc(tr('common.menu'))}">${icon('menu')}</button><div class="page-identity"><span class="page-eyebrow">${esc(tr(config.label))}</span><h2 class="page-title">${esc(tr(nav.find(([id]) => id === state.view)?.[1] || config.label))}</h2></div><div class="top-actions"><label class="language-picker">${icon('language','icon-sm')}<select data-action="change-language" aria-label="${esc(tr('common.language'))}">${languages.map(([code,label]) => `<option value="${code}" ${state.locale === code ? 'selected' : ''}>${label}</option>`).join('')}</select></label><div class="role-switcher"><button class="btn btn-secondary role-button" data-action="toggle-role-menu">${icon(config.icon,'icon-sm')}<span>${esc(tr(config.label))}</span>${icon('chevron','icon-sm')}</button>${state.roleMenu ? `<div class="role-menu">${allowedRoles().map(([id,item]) => `<button class="role-option" data-role="${id}"><span class="role-option-icon">${icon(item.icon)}</span><span><strong>${esc(tr(item.label))}</strong></span></button>`).join('')}</div>` : ''}</div><button class="icon-btn" data-action="toggle-theme" aria-label="${esc(tr('common.theme'))}">${icon(state.theme === 'dark' ? 'sun' : 'moon')}</button><button class="account-button" data-action="open-settings" aria-label="${esc(tr('nav.settings'))}"><span class="avatar">${esc((state.profile?.full_name || state.account?.email || 'RF').slice(0,2).toUpperCase())}</span></button></div></header><main class="content" id="main-content">${renderRolePage()}<footer class="in-app-footer"><span>${icon('heart','icon-sm')} ${esc(tr('footer.madeInIndia'))}</span><span><a href="mailto:${esc(state.publicConfig.contact_email)}">${esc(state.publicConfig.contact_email)}</a> · <a href="tel:+91${esc(state.publicConfig.contact_phone)}">+91 ${esc(state.publicConfig.contact_phone)}</a></span></footer></main></section>
+    <nav class="mobile-bottom-nav" aria-label="${esc(tr(config.label))}">${mobileNavigation(nav).map(([id,key,iconName]) => `<button class="bottom-nav-item ${state.view === id ? 'active' : ''}" data-view="${id}">${icon(iconName)}<span>${esc(tr(key))}</span></button>`).join('')}</nav>
   </div>`;
 }
 
 function renderRolePage() {
+  if (state.view === 'settings') return renderSettings();
   if (state.role === 'donor') return renderDonor();
   if (state.role === 'organizer') return renderOrganizer();
   if (state.role === 'hospital') return renderHospital();
@@ -295,6 +321,22 @@ function renderRolePage() {
 
 function pageHeader(titleKey, subtitleKey, actions = '') {
   return `<div class="page-header"><div><h1>${esc(tr(titleKey))}</h1><p>${esc(tr(subtitleKey))}</p></div>${actions ? `<div class="page-header-actions">${actions}</div>` : ''}</div>`;
+}
+
+function renderSettings() {
+  const roles = allowedRoles();
+  const preferences = state.preferences || {};
+  const appearance = preferences.appearance || state.theme.toUpperCase();
+  const toggle = (name, titleKey, helpKey) => `<label class="preference-toggle"><span><strong>${esc(tr(titleKey))}</strong><small>${esc(tr(helpKey))}</small></span><input type="checkbox" data-preference="${name}" ${preferences[name] ? 'checked' : ''}><i aria-hidden="true"></i></label>`;
+  return `${pageHeader('settings.title','settings.subtitle',button('save-preferences','settings.savePreferences','check'))}
+    <div class="settings-grid">
+      <section class="card settings-card">${cardHeader('settings.appearance','settings.appearanceHelp')}<div class="card-body settings-options"><button class="setting-choice ${appearance === 'LIGHT' ? 'active' : ''}" data-action="set-appearance" data-appearance="LIGHT">${icon('sun')}<span><strong>${esc(tr('settings.light'))}</strong><small>${esc(tr('settings.lightHelp'))}</small></span>${appearance === 'LIGHT' ? icon('check','icon-sm') : ''}</button><button class="setting-choice ${appearance === 'DARK' ? 'active' : ''}" data-action="set-appearance" data-appearance="DARK">${icon('moon')}<span><strong>${esc(tr('settings.dark'))}</strong><small>${esc(tr('settings.darkHelp'))}</small></span>${appearance === 'DARK' ? icon('check','icon-sm') : ''}</button><button class="setting-choice ${appearance === 'SYSTEM' ? 'active' : ''}" data-action="set-appearance" data-appearance="SYSTEM">${icon('settings')}<span><strong>${esc(tr('settings.system'))}</strong><small>${esc(tr('settings.systemHelp'))}</small></span>${appearance === 'SYSTEM' ? icon('check','icon-sm') : ''}</button></div></section>
+      <section class="card settings-card">${cardHeader('settings.language','settings.languageHelp')}<div class="card-body"><label class="field"><span>${esc(tr('common.language'))}</span><select class="select" data-action="change-language">${languages.map(([code,label]) => `<option value="${code}" ${state.locale === code ? 'selected' : ''}>${label}</option>`).join('')}</select></label><p class="muted">${esc(tr('settings.authenticatedLanguage'))}</p></div></section>
+      <section class="card settings-card span-2">${cardHeader('settings.workspaces','settings.workspacesHelp')}<div class="card-body settings-workspaces">${roles.map(([id,item]) => `<button class="workspace-choice ${state.role === id ? 'active' : ''}" data-role="${id}">${icon(item.icon)}<span><strong>${esc(tr(item.label))}</strong><small>${esc(tr('settings.serverAssigned'))}</small></span>${state.role === id ? icon('check','icon-sm') : icon('chevron','icon-sm')}</button>`).join('')}</div></section>
+      <section class="card settings-card">${cardHeader('settings.account','settings.accountHelp')}<div class="card-body settings-account"><span class="account-avatar">${esc((state.profile?.full_name || state.account?.email || 'RF').slice(0,2).toUpperCase())}</span><div><strong>${esc(state.profile?.full_name || state.account?.email || '')}</strong><small>${esc(state.account?.email || '')}</small></div>${state.account?.roles?.includes('ROLE_DONOR') ? `<button class="btn btn-secondary" data-action="open-profile">${icon('user','icon-sm')} ${esc(tr(state.profile ? 'common.editProfile' : 'common.completeProfile'))}</button>` : ''}<button class="btn btn-secondary" data-action="sign-out">${esc(tr('common.signOut'))}</button></div></section>
+      <section class="card settings-card">${cardHeader('settings.notifications','settings.notificationsHelp')}<div class="card-body preference-list">${toggle('in_app_notifications','settings.inApp','settings.inAppHelp')}${toggle('email_notifications','settings.email','settings.emailHelp')}${toggle('sms_notifications','settings.sms','settings.smsHelp')}</div></section>
+      <section class="card settings-card span-2">${cardHeader('settings.privacy','settings.privacyHelp')}<div class="card-body preference-list">${toggle('rare_blood_opt_in','settings.rareBlood','settings.rareBloodHelp')}${toggle('location_matching_opt_in','settings.locationMatching','settings.locationMatchingHelp')}${toggle('donation_lifecycle_opt_in','settings.lifecycle','settings.lifecycleHelp')}<div class="setting-notes"><p>${icon('lock','icon-sm')} ${esc(tr('settings.qrPrivacy'))}</p><p>${icon('shield','icon-sm')} ${esc(tr('settings.clinicalPrivacy'))}</p></div><div class="privacy-actions"><button class="btn btn-secondary" data-action="download-personal-data">${icon('download','icon-sm')} ${esc(tr('privacy.export'))}</button><button class="btn btn-secondary" data-action="privacy-request">${icon('file','icon-sm')} ${esc(tr('privacy.request'))}</button></div>${state.privacyRequests.length ? `<div class="privacy-request-list"><strong>${esc(tr('privacy.myRequests'))}</strong>${state.privacyRequests.slice(0,5).map(item => `<p><span>${esc(domainLabel('privacyRequest',item.request_type))}</span>${statusBadge(item.status)}<small>${esc(fmtDate(item.created_at))}</small></p>`).join('')}</div>` : ''}</div></section>
+    </div>`;
 }
 
 function renderDonor() {
@@ -313,8 +355,8 @@ function donorHome() {
   const upcoming = state.registrations.filter(item => ['REGISTERED','CHECKED_IN'].includes(item.status));
   return `${pageHeader('donor.homeTitle','donor.homeSubtitle',button('open-profile',profile ? 'common.editProfile' : 'common.completeProfile','user','btn-secondary') + button('open-screening','donor.precheckAction','shield','btn-secondary') + button('open-pass','donor.showPass','qr'))}
     ${state.campaignLanding ? `<section class="emergency-strip"><span class="emergency-pulse">${icon('calendar')}</span><span class="emergency-copy"><strong>${esc(state.campaignLanding.title)}</strong><span>${esc(fmtDate(state.campaignLanding.drive.starts_at))} · ${esc(state.campaignLanding.drive.venue_name)}</span></span><button class="btn" data-action="register-campaign">${esc(tr('donor.registerNow'))}</button></section>` : ''}
-    <div class="journey-grid"><article class="journey-card ${profileComplete ? 'complete' : 'current'}"><span class="journey-number">1</span><div><strong>${esc(tr('donor.stepProfile'))}</strong><p>${esc(profileComplete ? tr('donor.profileComplete') : tr('donor.profileMissing'))}</p>${profile ? `<span class="badge badge-neutral">${esc(profile.blood_type)} · ${esc(profile.city || '')}</span>` : ''}</div><button class="btn btn-secondary btn-sm" data-action="open-profile">${esc(tr(profileComplete ? 'common.edit' : 'common.start'))}</button></article><article class="journey-card ${review === 'PENDING' ? 'current' : review ? 'complete' : ''}"><span class="journey-number">2</span><div><strong>${esc(tr('donor.stepPrecheck'))}</strong><p>${esc(review ? statusLabel(review) : tr('donor.precheckMissing'))}</p></div><button class="btn btn-secondary btn-sm" data-action="open-screening">${esc(tr('donor.precheckAction'))}</button></article><article class="journey-card ${qrReady ? 'complete' : ''}"><span class="journey-number">3</span><div><strong>${esc(tr('donor.stepPass'))}</strong><p>${esc(qrReady ? tr('donor.passReady') : tr('donor.passLocked'))}</p></div><button class="btn btn-secondary btn-sm" data-action="open-pass" ${qrReady ? '' : 'disabled'}>${esc(tr('donor.showPass'))}</button></article></div>
-    <div class="grid grid-3"><section class="card span-2">${cardHeader('donor.upcomingRegistrations','donor.upcomingRegistrationsHelp',button('go-drives','common.browse','calendar','btn-ghost btn-sm'))}<div class="card-body activity-list">${upcoming.length ? upcoming.slice(0,5).map(item => `<div class="activity-item"><span class="activity-icon">${icon('calendar')}</span><span class="activity-copy"><strong>${esc(item.drive.name)}</strong><span>${esc(fmtDate(item.drive.starts_at))} · ${esc(item.drive.venue_name || item.drive.address)}</span></span>${statusBadge(item.status)}</div>`).join('') : emptyState('calendar','donor.noRegistrations','donor.noRegistrationsHelp',button('go-drives','common.findDrive','pin','btn-primary btn-sm'))}</div></section><aside class="stack"><article class="card">${cardHeader('donor.profileSummary','donor.profileSummaryHelp')}<div class="card-body profile-summary"><div><span>${esc(tr('common.name'))}</span><strong>${esc(profile?.full_name || tr('common.notSet'))}</strong></div><div><span>${esc(tr('common.bloodGroup'))}</span><strong>${esc(profile?.blood_type || tr('common.notSet'))}</strong></div><div><span>${esc(tr('common.city'))}</span><strong>${esc(profile?.city || tr('common.notSet'))}</strong></div></div></article><article class="card">${cardHeader('donor.liveNeeds','donor.liveNeedsHelp')}<div class="card-body"><strong class="big-count">${state.publicRequests.length}</strong><p class="muted">${esc(tr('donor.verifiedNeedsCount'))}</p><button class="btn btn-secondary" data-view="needs">${esc(tr('common.view'))}</button></div></article></aside></div>`;
+    <div class="journey-grid"><article class="journey-card ${profileComplete ? 'complete' : 'current'}"><span class="journey-number">1</span><div><strong>${esc(tr('donor.stepProfile'))}</strong><p>${esc(profileComplete ? tr('donor.profileComplete') : tr('donor.profileMissing'))}</p>${profile ? `<span class="badge badge-neutral">${esc(profile.blood_type)} · ${esc(profile.city || '')}</span>` : ''}</div><button class="btn btn-secondary btn-sm" data-action="open-profile">${esc(tr(profileComplete ? 'common.edit' : 'common.start'))}</button></article><article class="journey-card ${review === 'PENDING' ? 'current' : review ? 'complete' : ''}"><span class="journey-number">2</span><div><strong>${esc(tr('donor.stepPrecheck'))}</strong><p>${esc(review ? statusLabel(review) : tr('donor.precheckMissing'))}</p>${review === 'PENDING' ? `<small class="muted">${esc(tr('donor.refreshReviewHelp'))}</small>` : ''}${profile?.eligible_on ? `<div class="eligibility-countdown"><strong>${esc(tr('screening.earliestReview'))}: ${esc(new Intl.DateTimeFormat(state.locale,{dateStyle:'medium'}).format(new Date(`${profile.eligible_on}T00:00:00`)))}</strong><small>${esc((profile.deferral_reason_codes || []).map(code => statusLabel(code)).join(', '))}</small></div>` : ''}</div><button class="btn btn-secondary btn-sm" data-action="${review === 'PENDING' ? 'refresh-eligibility' : 'open-screening'}">${esc(tr(review === 'PENDING' ? 'common.refresh' : 'donor.precheckAction'))}</button></article><article class="journey-card ${qrReady ? 'complete' : ''}"><span class="journey-number">3</span><div><strong>${esc(tr('donor.stepPass'))}</strong><p>${esc(qrReady ? tr('donor.passReady') : tr('donor.passLocked'))}</p></div><button class="btn btn-secondary btn-sm" data-action="open-pass" ${qrReady ? '' : 'disabled'}>${esc(tr('donor.showPass'))}</button></article></div>
+    <div class="grid grid-3"><section class="card span-2">${cardHeader('donor.upcomingRegistrations','donor.upcomingRegistrationsHelp',button('go-drives','common.browse','calendar','btn-ghost btn-sm'))}<div class="card-body activity-list">${upcoming.length ? upcoming.slice(0,5).map(item => `<div class="activity-item"><span class="activity-icon">${icon('calendar')}</span><span class="activity-copy"><strong>${esc(item.drive.name)}</strong><span>${esc(fmtDate(item.drive.starts_at))} · ${esc(item.drive.venue_name || item.drive.address)}</span></span>${statusBadge(item.status)}</div>`).join('') : emptyState('calendar','donor.noRegistrations','donor.noRegistrationsHelp',button('go-drives','common.findDrive','pin','btn-primary btn-sm'))}</div></section><aside class="stack"><article class="card">${cardHeader('donor.profileSummary','donor.profileSummaryHelp')}<div class="card-body profile-summary"><div><span>${esc(tr('common.reference'))}</span><strong>${esc(profile?.reference_code || tr('common.notSet'))}</strong></div><div><span>${esc(tr('common.name'))}</span><strong>${esc(profile?.full_name || tr('common.notSet'))}</strong></div><div><span>${esc(tr('common.bloodGroup'))}</span><strong>${esc(profile?.blood_type || tr('common.notSet'))}</strong></div><div><span>${esc(tr('common.city'))}</span><strong>${esc(profile?.city || tr('common.notSet'))}</strong></div></div></article><article class="card">${cardHeader('donor.liveNeeds','donor.liveNeedsHelp')}<div class="card-body"><strong class="big-count">${state.publicRequests.length}</strong><p class="muted">${esc(tr('donor.verifiedNeedsCount'))}</p><button class="btn btn-secondary" data-view="needs">${esc(tr('common.view'))}</button></div></article></aside></div>`;
 }
 
 function donorNearbyMap() {
@@ -336,20 +378,23 @@ function donorNearbyMap() {
 
 function donorDrives() {
   const registeredIds = new Set(state.registrations.filter(item => item.status !== 'CANCELLED').map(item => item.drive.id));
-  return `${pageHeader('donor.drivesTitle','donor.drivesSubtitle',button('refresh-donor','common.refresh','refresh','btn-secondary'))}${donorNearbyMap()}<div class="drive-grid">${state.publicDrives.length ? state.publicDrives.map(drive => `<article class="card drive-card"><div class="drive-date"><strong>${new Date(drive.starts_at).getDate()}</strong><span>${new Intl.DateTimeFormat(state.locale,{month:'short'}).format(new Date(drive.starts_at))}</span></div><div class="drive-main"><div class="drive-title-row"><h2>${esc(drive.name)}</h2>${statusBadge(drive.status)}</div><p>${icon('pin','icon-sm')} ${esc(drive.venue_name || drive.address)}</p><p>${icon('calendar','icon-sm')} ${esc(fmtDate(drive.starts_at))}</p>${drive.distance_km != null ? `<span class="badge badge-blue">${esc(drive.distance_km)} ${esc(tr('map.kilometres'))}</span>` : ''}<span class="badge badge-neutral">${esc(tr('common.target'))}: ${drive.target_units}</span></div><div class="drive-actions">${registeredIds.has(drive.id) ? `<span class="badge badge-green">${esc(tr('status.registered'))}</span>` : `<button class="btn btn-primary" data-action="register-drive" data-drive-id="${drive.id}">${esc(tr('donor.registerNow'))}</button>`}</div></article>`).join('') : emptyState('calendar','donor.noDrives','donor.noDrivesHelp')}</div>`;
+  return `${pageHeader('donor.drivesTitle','donor.drivesSubtitle',button('refresh-donor','common.refresh','refresh','btn-secondary'))}${donorNearbyMap()}<div class="drive-grid">${state.publicDrives.length ? state.publicDrives.map(drive => `<article class="card drive-card"><div class="drive-date"><strong>${new Date(drive.starts_at).getDate()}</strong><span>${new Intl.DateTimeFormat(state.locale,{month:'short'}).format(new Date(drive.starts_at))}</span></div><div class="drive-main"><div class="drive-title-row"><h2>${esc(drive.name)}</h2>${statusBadge(drive.status)}</div><p>${icon('pin','icon-sm')} ${esc(drive.venue_name || drive.address)}</p><p>${icon('calendar','icon-sm')} ${esc(fmtDate(drive.starts_at))}</p>${drive.distance_km != null ? `<span class="badge badge-blue">${esc(drive.distance_km)} ${esc(tr('map.kilometres'))}</span>` : ''}<span class="badge badge-neutral">${esc(tr('common.target'))}: ${drive.target_units}</span></div><div class="drive-actions">${registeredIds.has(drive.id) ? `<span class="badge badge-green">${esc(tr('status.registered'))}</span>` : `<button class="btn btn-primary" data-action="register-drive" data-drive-id="${drive.id}">${esc(tr('donor.registerNow'))}</button>`}</div></article>`).join('') : emptyState('calendar','donor.noDrives','donor.noDrivesHelp',button('enable-local-alerts','privacy.alertPreferences','settings','btn-primary'))}</div>`;
 }
 
 function donorNeeds() {
-  return `${pageHeader('donor.needsTitle','donor.needsSubtitle',button('refresh-donor','common.refresh','refresh','btn-secondary'))}${donorNearbyMap()}<div class="stack">${state.publicRequests.length ? state.publicRequests.map(item => `<article class="card request-card"><div class="request-type">${esc(item.blood_type)}</div><div><h2>${esc(domainLabel('component', item.component_type))} · ${item.units_needed} ${esc(tr('common.units'))}</h2><p>${esc(item.facility_name)} · ${esc(item.city)}, ${esc(item.state)}${item.distance_km != null ? ` · ${esc(item.distance_km)} ${esc(tr('map.kilometres'))}` : ''}</p><p>${esc(tr('common.expires'))}: ${esc(fmtDate(item.expires_at))}</p></div>${statusBadge('VERIFIED')}</article>`).join('') : emptyState('shield','donor.noNeeds','donor.noNeedsHelp')}</div>`;
+  const alertCards = state.donorAlerts.map(item => `<article class="card request-card rare-alert-card"><div class="request-type">${esc(item.blood_type)}</div><div><div class="drive-title-row"><h2>${esc(tr('rare.standbyRequest'))}</h2>${statusBadge(item.response)}</div><p>${esc(domainLabel('component',item.component_type))} · ${item.units_needed} ${esc(tr('common.units'))} · ${esc(item.facility_name)}</p><p>${esc(tr('rare.responseDeadline'))}: ${esc(fmtDate(item.response_deadline))} · ${esc(tr('rare.tier'))} ${item.tier}</p><small>${esc(tr('rare.noPatientIdentity'))}</small></div>${item.can_respond ? `<div class="drive-actions"><button class="btn btn-primary" data-action="respond-rare-alert" data-alert-id="${item.id}" data-response="ACCEPTED">${esc(tr('rare.canRespond'))}</button><button class="btn btn-secondary" data-action="respond-rare-alert" data-alert-id="${item.id}" data-response="DECLINED">${esc(tr('rare.cannotRespond'))}</button></div>` : ''}</article>`).join('');
+  const publicCards = state.publicRequests.length ? state.publicRequests.map(item => `<article class="card request-card"><div class="request-type">${esc(item.blood_type)}</div><div><h2>${esc(domainLabel('component', item.component_type))} · ${item.units_needed} ${esc(tr('common.units'))}</h2><p>${esc(item.facility_name)} · ${esc(item.city)}, ${esc(item.state)}${item.distance_km != null ? ` · ${esc(item.distance_km)} ${esc(tr('map.kilometres'))}` : ''}</p><p>${esc(tr('common.expires'))}: ${esc(fmtDate(item.expires_at))}</p></div>${statusBadge('VERIFIED')}</article>`).join('') : emptyState('shield','donor.noNeeds','donor.noNeedsHelp',button('enable-local-alerts','privacy.alertPreferences','settings','btn-primary'));
+  return `${pageHeader('donor.needsTitle','donor.needsSubtitle',button('refresh-donor','common.refresh','refresh','btn-secondary'))}${alertCards ? `<section class="stack rare-alerts"><div class="section-heading"><div><h2>${esc(tr('rare.myAlerts'))}</h2><p>${esc(tr('rare.myAlertsHelp'))}</p></div></div>${alertCards}</section>` : ''}${donorNearbyMap()}<div class="stack">${publicCards}</div>`;
 }
 
 function donorHistory() {
-  return `${pageHeader('donor.historyTitle','donor.historySubtitle')}<article class="card"><div class="table-wrap"><table class="data-table"><thead><tr><th>${esc(tr('common.date'))}</th><th>${esc(tr('common.drive'))}</th><th>${esc(tr('common.component'))}</th><th>${esc(tr('common.bloodGroup'))}</th><th>${esc(tr('common.unitReference'))}</th></tr></thead><tbody>${state.donationHistory.length ? state.donationHistory.map(item => `<tr><td>${esc(fmtDate(item.collected_at))}</td><td>${esc(item.drive_name)}</td><td>${esc(domainLabel('component', item.component_type))}</td><td>${esc(item.blood_type)}</td><td>${esc(item.unit_reference)}</td></tr>`).join('') : `<tr><td colspan="5">${emptyState('file','donor.noHistory','donor.noHistoryHelp')}</td></tr>`}</tbody></table></div></article>`;
+  const notifications = state.donorUnitNotifications.map(item => `<article class="lifecycle-notice ${item.read_at ? '' : 'unread'}"><span>${icon('heart')}</span><div><strong>${esc(tr('lifecycle.whereItWent'))}</strong><p>${esc(item.message)}</p><small>${esc(fmtDate(item.created_at))}</small></div>${item.read_at ? '' : `<button class="btn btn-secondary btn-sm" data-action="read-unit-notification" data-notification-id="${item.id}">${esc(tr('common.markRead'))}</button>`}</article>`).join('');
+  return `${pageHeader('donor.historyTitle','donor.historySubtitle')}${notifications ? `<section class="stack lifecycle-notices">${notifications}</section>` : ''}<div class="stack donation-lifecycle-list">${state.donationHistory.length ? state.donationHistory.map(item => `<article class="card card-pad"><div class="drive-title-row"><div><span class="section-label">${esc(fmtDate(item.collected_at))}</span><h2>${esc(item.drive_name)}</h2><p>${esc(item.venue_name || '')}</p></div><span class="blood-stock-type">${esc(item.blood_type)}</span></div><p><strong>${esc(tr('common.unitReference'))}:</strong> ${esc(item.unit_reference)}</p><div class="lifecycle-track">${(item.components || []).map(component => `<div class="lifecycle-step ${component.status === 'TRANSFUSED' ? 'used' : ''}"><span>${icon(component.status === 'TRANSFUSED' ? 'heart' : 'droplet','icon-sm')}</span><div><strong>${esc(domainLabel('component', component.component_type))}</strong><small>${esc(statusLabel(component.status))}</small>${component.privacy_message ? `<p>${esc(component.privacy_message)}</p>` : ''}</div></div>`).join('') || `<p class="muted">${esc(tr('lifecycle.awaitingTracking'))}</p>`}</div><p class="muted">${esc(tr('lifecycle.noPatientIdentity'))}</p></article>`).join('') : emptyState('file','donor.noHistory','donor.noHistoryHelp')}</div>`;
 }
 
 function donorPassPage() {
   const ready = state.profile?.screening_review_status === 'APPROVED' && state.profile?.blood_type !== 'UNKNOWN';
-  return `${pageHeader('donor.passTitle','donor.passSubtitle',ready ? button('open-pass','donor.generatePass','qr') : '')}<article class="card"><div class="card-body">${ready ? `<div class="pass-ready-panel"><span class="metric-icon">${icon('shield')}</span><h2>${esc(tr('donor.passApproved'))}</h2><p>${esc(tr('donor.passSafety'))}</p><button class="btn btn-primary btn-lg" data-action="open-pass">${icon('qr')} ${esc(tr('donor.generatePass'))}</button></div>` : emptyState('lock','donor.passNotReady','donor.passRequirements',button('open-profile','common.completeProfile','user','btn-secondary') + button('open-screening','donor.precheckAction','shield','btn-primary'))}</div></article>`;
+  return `${pageHeader('donor.passTitle','donor.passSubtitle',ready ? button('open-pass','donor.generatePass','qr') : '')}<article class="card"><div class="card-body">${ready ? `<div class="pass-ready-panel"><span class="metric-icon">${icon('shield')}</span><h2>${esc(tr('donor.passApproved'))}</h2><p>${esc(tr('donor.passSafety'))}</p><div class="manual-reference-card"><span>${esc(tr('donor.manualReference'))}</span><strong>${esc(state.profile?.reference_code || '')}</strong><small>${esc(tr('donor.manualReferenceHelp'))}</small></div><button class="btn btn-primary btn-lg" data-action="open-pass">${icon('qr')} ${esc(tr('donor.generatePass'))}</button></div>` : emptyState('lock','donor.passNotReady','donor.passRequirements',button('open-profile','common.completeProfile','user','btn-secondary') + button('open-screening','donor.precheckAction','shield','btn-primary'))}</div></article>`;
 }
 
 function renderOrganizer() {
@@ -376,7 +421,7 @@ function organizerOverview() {
 }
 
 function organizerDrives() {
-  return `${pageHeader('organizer.drivesTitle','organizer.drivesSubtitle',button('create-drive','organizer.createDrive','plus') + button('create-proposal','organizer.proposeDrive','mail','btn-secondary'))}<div class="stack">${state.drives.length ? state.drives.map(drive => `<article class="card drive-card"><div class="drive-main"><div class="drive-title-row"><h2>${esc(drive.name)}</h2>${statusBadge(drive.status)}</div><p>${esc(drive.venue_name || drive.address)}</p><p>${esc(fmtDate(drive.starts_at))} — ${esc(fmtDate(drive.ends_at))}</p><span class="badge badge-neutral">${esc(tr('common.target'))}: ${drive.target_units}</span></div><div class="drive-actions"><button class="btn btn-secondary btn-sm" data-action="select-drive-card" data-drive-id="${drive.id}">${esc(tr('common.manage'))}</button>${drive.status === 'APPROVED' ? `<button class="btn btn-primary btn-sm" data-action="drive-status" data-drive-id="${drive.id}" data-status="ACTIVE">${esc(tr('organizer.startDrive'))}</button>` : ''}${drive.status === 'ACTIVE' ? `<button class="btn btn-primary btn-sm" data-action="drive-status" data-drive-id="${drive.id}" data-status="COMPLETED">${esc(tr('organizer.completeDrive'))}</button>` : ''}</div></article>`).join('') : emptyState('calendar','organizer.noDrives','organizer.noDrivesHelp',button('create-drive','organizer.createDrive','plus'))}</div><section style="margin-top:22px">${cardHeader('venue.proposalsTitle','venue.proposalsSubtitle')}<div class="stack">${state.proposals.length ? state.proposals.map(proposal => `<article class="card compact-card"><div><strong>${esc(proposal.proposed_name)}</strong><p>${esc(proposal.venue_name)} · ${esc(proposal.host_email)}</p></div>${statusBadge(proposal.status)}</article>`).join('') : emptyState('mail','venue.noProposals','venue.noProposalsHelp')}</div></section>`;
+  return `${pageHeader('organizer.drivesTitle','organizer.drivesSubtitle',button('create-drive','organizer.createDrive','plus') + button('create-proposal','organizer.proposeDrive','mail','btn-secondary'))}<div class="stack">${state.drives.length ? state.drives.map(drive => `<article class="card drive-card"><div class="drive-main"><div class="drive-title-row"><h2>${esc(drive.name)}</h2>${statusBadge(drive.status)}</div><p>${esc(drive.venue_name || drive.address)}</p><p>${esc(fmtDate(drive.starts_at))} — ${esc(fmtDate(drive.ends_at))}</p><span class="badge badge-neutral">${esc(tr('common.target'))}: ${drive.target_units}</span></div><div class="drive-actions"><button class="btn btn-secondary btn-sm" data-action="select-drive-card" data-drive-id="${drive.id}">${esc(tr('common.manage'))}</button><button class="btn btn-secondary btn-sm" data-action="manage-quotas" data-drive-id="${drive.id}">${esc(tr('quota.manage'))}</button>${drive.status === 'APPROVED' ? `<button class="btn btn-primary btn-sm" data-action="drive-status" data-drive-id="${drive.id}" data-status="ACTIVE">${esc(tr('organizer.startDrive'))}</button>` : ''}${drive.status === 'ACTIVE' ? `<button class="btn btn-primary btn-sm" data-action="drive-status" data-drive-id="${drive.id}" data-status="COMPLETED">${esc(tr('organizer.completeDrive'))}</button>` : ''}</div></article>`).join('') : emptyState('calendar','organizer.noDrives','organizer.noDrivesHelp',button('create-drive','organizer.createDrive','plus'))}</div><section style="margin-top:22px">${cardHeader('venue.proposalsTitle','venue.proposalsSubtitle')}<div class="stack">${state.proposals.length ? state.proposals.map(proposal => `<article class="card compact-card"><div><strong>${esc(proposal.proposed_name)}</strong><p>${esc(proposal.venue_name)} · ${esc(proposal.host_email)}</p></div>${statusBadge(proposal.status)}</article>`).join('') : emptyState('mail','venue.noProposals','venue.noProposalsHelp')}</div></section>`;
 }
 
 function organizerCampaigns() {
@@ -387,8 +432,8 @@ function organizerCampaigns() {
 
 function organizerIntake() {
   const drive = activeDrive();
-  const allowed = drive && ['APPROVED','ACTIVE'].includes(drive.status);
-  return `${pageHeader('intake.title','intake.subtitle',driveSelector())}<div class="scanner-layout"><section class="card card-pad"><div class="camera-view"><div class="scan-reticle"><span class="scan-line"></span></div><span class="camera-status">${icon('shield','icon-sm')} ${esc(tr('intake.cameraPrivacy'))}</span></div><div class="scan-actions"><button class="btn btn-primary" data-action="start-camera" ${allowed ? '' : 'disabled'}>${icon('camera','icon-sm')} ${esc(tr('intake.openCamera'))}</button><label class="btn btn-secondary file-button ${allowed ? '' : 'disabled'}">${icon('upload','icon-sm')} ${esc(tr('intake.scanPhoto'))}<input id="qr-image-input" type="file" accept="image/*" capture="environment" ${allowed ? '' : 'disabled'} hidden></label></div><div class="field" style="margin-top:18px"><label for="manual-reference">${esc(tr('intake.manualReference'))}</label><div class="input-action"><input class="input" id="manual-reference" placeholder="RF-1234ABCD"><button class="btn btn-secondary" data-action="manual-checkin" ${allowed ? '' : 'disabled'}>${esc(tr('intake.checkIn'))}</button></div></div>${!allowed ? `<div class="config-warning">${icon('alert','icon-sm')} ${esc(tr('intake.approvedDriveRequired'))}</div>` : ''}</section><aside class="card">${cardHeader('intake.donorCard','intake.donorCardHelp')}<div class="card-body">${state.intakeDonor ? `<div class="intake-person"><span class="avatar">${esc(state.intakeDonor.display_name.slice(0,2).toUpperCase())}</span><div><h2>${esc(state.intakeDonor.display_name)}</h2><p>${esc(state.intakeDonor.donor_reference)} · ${esc(state.intakeDonor.blood_type)}</p></div></div><div class="profile-summary"><div><span>${esc(tr('intake.precheck'))}</span><strong>${esc(statusLabel(state.intakeDonor.latest_screening_outcome))}</strong></div><div><span>${esc(tr('intake.clearance'))}</span><strong>${esc(statusLabel(state.intakeDonor.clearance_status))}</strong></div></div>${state.account.roles.includes('ROLE_HOSPITAL') || state.account.roles.includes('ROLE_SUPER_ADMIN') ? `<button class="btn btn-primary" data-action="clinical-assessment">${esc(tr('intake.assess'))}</button>` : ''}<button class="btn btn-secondary" data-action="record-donation" ${state.intakeDonor.clearance_status === 'CLEARED' ? '' : 'disabled'}>${esc(tr('intake.recordDonation'))}</button>` : emptyState('scan','intake.ready','intake.readyHelp')}</div></aside></div>`;
+  const allowed = state.online && drive && ['APPROVED','ACTIVE'].includes(drive.status);
+  return `${pageHeader('intake.title','intake.subtitle',driveSelector())}<div class="scanner-layout"><section class="card card-pad"><div class="camera-view"><div class="scan-reticle"><span class="scan-line"></span></div><span class="camera-status">${icon('shield','icon-sm')} ${esc(tr('intake.cameraPrivacy'))}</span></div><div class="scan-actions"><button class="btn btn-primary" data-action="start-camera" ${allowed ? '' : 'disabled'}>${icon('camera','icon-sm')} ${esc(tr('intake.openCamera'))}</button><label class="btn btn-secondary file-button ${allowed ? '' : 'disabled'}">${icon('upload','icon-sm')} ${esc(tr('intake.scanPhoto'))}<input id="qr-image-input" type="file" accept="image/*" capture="environment" ${allowed ? '' : 'disabled'} hidden></label></div><div class="field" style="margin-top:18px"><label for="manual-reference">${esc(tr('intake.manualReference'))}</label><div class="input-action"><input class="input" id="manual-reference" placeholder="RF-1234ABCD"><button class="btn btn-secondary" data-action="manual-checkin" ${allowed ? '' : 'disabled'}>${esc(tr('intake.checkIn'))}</button></div></div>${!allowed ? `<div class="config-warning">${icon('alert','icon-sm')} ${esc(tr(state.online ? 'intake.approvedDriveRequired' : 'intake.onlineRequired'))}</div>` : ''}</section><aside class="card">${cardHeader('intake.donorCard','intake.donorCardHelp')}<div class="card-body">${state.intakeDonor ? `<div class="intake-person"><span class="avatar">${esc(state.intakeDonor.display_name.slice(0,2).toUpperCase())}</span><div><h2>${esc(state.intakeDonor.display_name)}</h2><p>${esc(state.intakeDonor.donor_reference)} · ${esc(state.intakeDonor.blood_type)}</p></div></div><div class="profile-summary"><div><span>${esc(tr('intake.precheck'))}</span><strong>${esc(statusLabel(state.intakeDonor.latest_screening_outcome))}</strong></div><div><span>${esc(tr('intake.clearance'))}</span><strong>${esc(statusLabel(state.intakeDonor.clearance_status))}</strong></div></div>${state.account.roles.includes('ROLE_HOSPITAL') || state.account.roles.includes('ROLE_SUPER_ADMIN') ? `<button class="btn btn-primary" data-action="clinical-assessment">${esc(tr('intake.assess'))}</button>` : ''}<button class="btn btn-secondary" data-action="record-donation" ${state.intakeDonor.clearance_status === 'CLEARED' ? '' : 'disabled'}>${esc(tr('intake.recordDonation'))}</button>` : emptyState('scan','intake.ready','intake.readyHelp')}</div></aside></div>`;
 }
 
 function organizerRoster() {
@@ -403,27 +448,56 @@ function organizerReconciliation() {
 function renderHospital() {
   if (state.view === 'clinical') return hospitalClinical();
   if (state.view === 'inventory') return hospitalInventory();
+  if (state.view === 'components') return hospitalComponents();
   if (state.view === 'requests') return hospitalRequests();
   return hospitalOverview();
 }
 
 function hospitalOverview() {
   const profile = state.hospitalProfile;
-  return `${pageHeader('hospital.overviewTitle','hospital.overviewSubtitle',profile ? button('refresh-hospital','common.refresh','refresh','btn-secondary') : button('apply-hospital','hospital.apply','hospital'))}${profile ? `<section class="card card-pad"><div class="drive-title-row"><div><span class="section-label">${esc(tr('hospital.facility'))}</span><h2>${esc(profile.facility_name)}</h2><p>${esc(profile.address)} · ${esc(profile.city)}, ${esc(profile.state)}</p></div>${statusBadge(profile.status)}</div>${profile.status !== 'VERIFIED' ? `<div class="config-warning">${icon('alert','icon-sm')} ${esc(tr('hospital.pendingNotice'))}</div>` : ''}<div class="evidence-row"><span>${icon('file','icon-sm')} ${state.hospitalDocuments.length} ${esc(tr('hospital.documentsStored'))}</span>${profile.status === 'PENDING' ? `<button class="btn btn-secondary btn-sm" data-action="upload-hospital-evidence" data-hospital-id="${profile.id}">${esc(tr('hospital.addEvidence'))}</button>` : ''}</div></section>` : `<section class="card">${emptyState('hospital','hospital.noApplication','hospital.noApplicationHelp',button('apply-hospital','hospital.apply','plus'))}</section>`}<div class="grid grid-3" style="margin-top:18px">${metric('shield',String(state.clinicalQueue.filter(item => item.review_status === 'PENDING').length),'hospital.pendingReviews')}${metric('inventory',String(state.inventory.reduce((sum,item) => sum + item.units_available,0)),'hospital.inventoryUnits')}${metric('file',String(state.hospitalRequests.filter(item => ['PENDING','VERIFIED'].includes(item.status)).length),'hospital.activeRequests')}</div>`;
+  return `${pageHeader('hospital.overviewTitle','hospital.overviewSubtitle',profile ? button('refresh-hospital','common.refresh','refresh','btn-secondary') : button('apply-hospital','hospital.apply','hospital'))}${profile ? `<section class="card card-pad"><div class="drive-title-row"><div><span class="section-label">${esc(tr('hospital.facility'))}</span><h2>${esc(profile.facility_name)}</h2><p>${esc(profile.address)} · ${esc(profile.city)}, ${esc(profile.state)}</p></div>${statusBadge(profile.status)}</div>${profile.status !== 'VERIFIED' ? `<div class="config-warning">${icon('alert','icon-sm')} ${esc(tr('hospital.pendingNotice'))}</div>` : ''}<div class="evidence-row"><span>${icon('file','icon-sm')} ${state.hospitalDocuments.length} ${esc(tr('hospital.documentsStored'))}</span>${profile.status === 'PENDING' ? `<button class="btn btn-secondary btn-sm" data-action="upload-hospital-evidence" data-hospital-id="${profile.id}">${esc(tr('hospital.addEvidence'))}</button>` : ''}</div></section>` : `<section class="card">${emptyState('hospital','hospital.noApplication','hospital.noApplicationHelp',button('apply-hospital','hospital.apply','plus'))}</section>`}<div class="grid grid-3" style="margin-top:18px">${metric('shield',String(state.clinicalQueue.filter(item => item.review_status === 'PENDING').length),'hospital.pendingReviews')}${metric('inventory',String(state.components.filter(item => ['AVAILABLE','RESERVED'].includes(item.status)).length),'hospital.inventoryUnits')}${metric('file',String(state.hospitalRequests.filter(item => ['PENDING','VERIFIED'].includes(item.status)).length),'hospital.activeRequests')}</div>`;
 }
 
 function hospitalClinical() {
-  return `${pageHeader('clinical.title','clinical.subtitle',button('refresh-clinical','common.refresh','refresh','btn-secondary'))}<div class="stack">${state.clinicalQueue.length ? state.clinicalQueue.map(item => `<article class="card clinical-review-card"><div><div class="drive-title-row"><h2>${esc(item.display_name)} · ${esc(item.donor_reference)}</h2>${statusBadge(item.review_status)}</div><p>${esc(tr('common.bloodGroup'))}: ${esc(item.blood_type)} · ${esc(tr('common.city'))}: ${esc(item.city || tr('common.none'))}</p><p>${esc(tr('clinical.precheckOutcome'))}: ${esc(statusLabel(item.outcome))}</p><div class="flag-list">${(item.flags || []).map(flag => `<span class="badge badge-amber">${esc(statusLabel(flag))}</span>`).join('') || `<span class="badge badge-green">${esc(tr('clinical.noFlags'))}</span>`}</div><small>${esc(tr('common.expires'))}: ${esc(fmtDate(item.valid_until))}</small></div>${item.review_status === 'PENDING' ? `<div class="drive-actions"><button class="btn btn-primary" data-action="review-screening" data-screening-id="${item.screening_id}" data-decision="APPROVED">${esc(tr('clinical.approveQr'))}</button><button class="btn btn-secondary" data-action="review-screening" data-screening-id="${item.screening_id}" data-decision="DECLINED">${esc(tr('common.decline'))}</button></div>` : ''}</article>`).join('') : emptyState('shield','clinical.empty','clinical.emptyHelp')}</div>`;
+  return `${pageHeader('clinical.title','clinical.subtitle',button('refresh-clinical','common.refresh','refresh','btn-secondary'))}<div class="stack">${state.clinicalQueue.length ? state.clinicalQueue.map(item => `<article class="card clinical-review-card"><div><div class="drive-title-row"><h2>${esc(tr('common.donor'))} · ${esc(item.donor_reference)}</h2>${statusBadge(item.review_status)}</div><p>${esc(tr('common.bloodGroup'))}: ${esc(item.blood_type)} · ${esc(tr('common.city'))}: ${esc(item.city || tr('common.none'))}</p><p>${esc(tr('clinical.precheckOutcome'))}: ${esc(statusLabel(item.outcome))}</p><div class="flag-list">${(item.flags || []).map(flag => `<span class="badge badge-amber">${esc(statusLabel(flag))}</span>`).join('') || `<span class="badge badge-green">${esc(tr('clinical.noFlags'))}</span>`}</div>${item.eligible_on ? `<div class="config-warning">${icon('calendar','icon-sm')} ${esc(tr('screening.earliestReview'))}: ${esc(item.eligible_on)} · ${esc((item.deferral_reason_codes || []).map(code => statusLabel(code)).join(', '))}</div>` : ''}<small>${esc(tr('common.expires'))}: ${esc(fmtDate(item.valid_until))}</small></div>${item.review_status === 'PENDING' ? `<div class="drive-actions"><button class="btn btn-primary" data-action="review-screening" data-screening-id="${item.screening_id}" data-decision="APPROVED">${esc(tr('clinical.approveQr'))}</button><button class="btn btn-secondary" data-action="review-screening" data-screening-id="${item.screening_id}" data-decision="DECLINED">${esc(tr('common.decline'))}</button></div>` : ''}</article>`).join('') : emptyState('shield','clinical.empty','clinical.emptyHelp')}</div>`;
 }
 
 function hospitalInventory() {
   const verified = state.hospitalProfile?.status === 'VERIFIED';
-  return `${pageHeader('inventory.title','inventory.subtitle',verified ? button('inventory-event','inventory.record','plus') : '')}${verified ? `<div class="inventory-grid">${state.inventory.length ? state.inventory.map(item => `<article class="blood-stock"><div class="blood-stock-top"><span class="blood-stock-type">${esc(item.blood_type)}</span><span class="blood-stock-units">${item.units_available - item.units_reserved} ${esc(tr('common.units'))}</span></div><div class="progress ${item.is_low ? 'rose' : ''}"><span style="width:${Math.min(100,(item.units_available / Math.max(item.minimum_level * 3,1))*100)}%"></span></div><small>${esc(domainLabel('component', item.component_type))} · ${esc(item.phenotype_code)}</small></article>`).join('') : emptyState('inventory','inventory.empty','inventory.emptyHelp',button('inventory-event','inventory.record','plus'))}</div>` : `<article class="card">${emptyState('lock','hospital.verificationRequired','hospital.verificationRequiredHelp')}</article>`}`;
+  if (!verified) return `${pageHeader('inventory.title','inventory.subtitle')}<article class="card">${emptyState('lock','hospital.verificationRequired','hospital.verificationRequiredHelp')}</article>`;
+  const grouped = new Map();
+  for (const component of state.components.filter(item => ['AVAILABLE','RESERVED'].includes(item.status))) {
+    const key=`${component.blood_type}|${component.component_type}`;
+    const row=grouped.get(key) || {blood_type:component.blood_type,component_type:component.component_type,available:0,reserved:0,expiring:0};
+    row[component.status === 'RESERVED' ? 'reserved' : 'available'] += 1;
+    if (['EXPIRED','EXPIRES_WITHIN_24_HOURS','EXPIRES_SOON'].includes(component.expiry_state)) row.expiring += 1;
+    grouped.set(key,row);
+  }
+  const precise=[...grouped.values()];
+  return `${pageHeader('inventory.title','inventory.subtitle',button('receive-component','components.receive','scan') + button('inventory-event','inventory.record','plus','btn-secondary'))}<div class="config-note">${icon('shield','icon-sm')} ${esc(tr('inventory.perUnitNotice'))}</div><div class="inventory-grid" style="margin-top:16px">${precise.length ? precise.map(item => `<article class="blood-stock"><div class="blood-stock-top"><span class="blood-stock-type">${esc(item.blood_type)}</span><span class="blood-stock-units">${item.available} ${esc(tr('common.units'))}</span></div><div class="progress ${item.expiring ? 'rose' : ''}"><span style="width:${Math.min(100,(item.available / Math.max(item.available+item.reserved,1))*100)}%"></span></div><small>${esc(domainLabel('component',item.component_type))} · ${item.reserved} ${esc(statusLabel('RESERVED'))} · ${item.expiring} ${esc(tr('components.soon'))}</small></article>`).join('') : emptyState('inventory','inventory.empty','inventory.emptyHelp',button('receive-component','components.receive','scan'))}</div><section style="margin-top:22px">${cardHeader('inventory.aggregateLedger','inventory.aggregateLedgerHelp')}<div class="card-body"><p class="muted">${esc(tr('inventory.aggregateLedgerNotice'))}</p>${state.inventory.length ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>${esc(tr('common.bloodGroup'))}</th><th>${esc(tr('common.component'))}</th><th>${esc(tr('common.units'))}</th></tr></thead><tbody>${state.inventory.map(item => `<tr><td>${esc(item.blood_type)}</td><td>${esc(domainLabel('component',item.component_type))}</td><td>${item.units_available-item.units_reserved}</td></tr>`).join('')}</tbody></table></div>` : ''}</div></section>`;
+}
+
+function hospitalComponents() {
+  const verified = state.hospitalProfile?.status === 'VERIFIED';
+  if (!verified) return `${pageHeader('components.title','components.subtitle')}<article class="card">${emptyState('lock','hospital.verificationRequired','hospital.verificationRequiredHelp')}</article>`;
+  const expiry = state.componentExpiry || {};
+  return `${pageHeader('components.title','components.subtitle',button('receive-component','components.receive','scan') + button('component-policies','components.policies','settings','btn-secondary'))}
+    <div class="grid grid-4 metric-grid-mobile expiry-metrics">${metric('alert',String(expiry.EXPIRED || 0),'components.expired')}${metric('calendar',String(expiry.EXPIRES_WITHIN_24_HOURS || 0),'components.critical')}${metric('activity',String(expiry.EXPIRES_SOON || 0),'components.soon')}${metric('shield',String(expiry.WITHIN_POLICY_WINDOW || 0),'components.withinPolicy')}</div>
+    <div class="config-note" style="margin-top:18px">${icon('shield','icon-sm')} ${esc(tr('components.policyNotice'))}</div>
+    <article class="card" style="margin-top:18px"><div class="table-wrap"><table class="data-table"><thead><tr><th>${esc(tr('common.reference'))}</th><th>${esc(tr('common.component'))}</th><th>${esc(tr('common.bloodGroup'))}</th><th>${esc(tr('common.expires'))}</th><th>${esc(tr('common.status'))}</th><th>${esc(tr('common.actions'))}</th></tr></thead><tbody>${state.components.length ? state.components.map(item => `<tr class="expiry-${esc(item.expiry_state.toLowerCase())}"><td><strong>${esc(item.component_reference)}</strong>${item.isbt128_code ? `<br><small>${esc(tr('components.isbtExisting'))}: ${esc(item.isbt128_code)}</small>` : ''}</td><td>${esc(domainLabel('component',item.component_type))}</td><td>${esc(item.blood_type)}</td><td>${esc(fmtDate(item.expires_at))}<br><small>${esc(statusLabel(item.expiry_state))}</small></td><td>${statusBadge(item.status)}</td><td><div class="table-actions"><button class="btn btn-secondary btn-sm" data-action="component-event" data-component-id="${item.id}">${esc(tr('components.recordEvent'))}</button><button class="btn btn-secondary btn-sm" data-action="component-history" data-component-id="${item.id}">${esc(tr('components.history'))}</button>${['COLLECTED','AVAILABLE','QUARANTINED'].includes(item.status) ? `<button class="btn btn-secondary btn-sm" data-action="split-component" data-component-id="${item.id}">${esc(tr('components.separate'))}</button><button class="btn btn-secondary btn-sm" data-action="handover-component" data-component-id="${item.id}">${esc(tr('components.handover'))}</button>` : ''}</div></td></tr>`).join('') : `<tr><td colspan="6">${emptyState('droplet','components.empty','components.emptyHelp',button('receive-component','components.receive','scan'))}</td></tr>`}</tbody></table></div></article>
+    <section style="margin-top:22px">${cardHeader('components.handovers','components.handoversHelp')}<div class="stack">${state.handovers.length ? state.handovers.map(item => `<article class="card compact-card"><div><strong>${esc(item.container_reference)}</strong><p>${esc(fmtDate(item.handed_over_at))} · ${esc(item.dispatch_temperature_c)} °C</p></div><div class="drive-actions">${statusBadge(item.status)}${item.can_receive ? `<button class="btn btn-primary btn-sm" data-action="receive-handover" data-handover-id="${item.id}">${esc(tr('components.confirmReceipt'))}</button>` : ''}</div></article>`).join('') : emptyState('inventory','components.noHandovers','components.noHandoversHelp')}</div></section>`;
 }
 
 function hospitalRequests() {
   const verified = state.hospitalProfile?.status === 'VERIFIED';
-  return `${pageHeader('requests.title','requests.subtitle',verified ? button('new-request','requests.create','plus') : '')}${verified ? `<div class="stack">${state.hospitalRequests.length ? state.hospitalRequests.map(item => `<article class="card request-card"><div class="request-type">${esc(item.blood_type)}</div><div><h2>${esc(domainLabel('component', item.component_type))} · ${item.units_needed} ${esc(tr('common.units'))}</h2><p>${esc(domainLabel('urgency', item.urgency))} · ${esc(fmtDate(item.expires_at))}</p></div><div class="drive-actions">${statusBadge(item.status)}${item.status === 'PENDING' ? `<button class="btn btn-primary btn-sm" data-action="verify-request" data-request-id="${item.id}">${esc(tr('requests.verify'))}</button>` : ''}</div></article>`).join('') : emptyState('file','requests.empty','requests.emptyHelp',button('new-request','requests.create','plus'))}</div>` : `<article class="card">${emptyState('lock','hospital.verificationRequired','hospital.verificationRequiredHelp')}</article>`}`;
+  const cards = state.hospitalRequests.map(item => {
+    const rare = item.urgency === 'RARE_STANDBY' && item.status === 'VERIFIED';
+    const history = state.rareDispatchHistory[item.id];
+    const summary = history?.summary;
+    const rarePanel = rare ? `<section class="rare-dispatch-panel"><div class="drive-title-row"><div><strong>${esc(tr('rare.responseHistory'))}</strong>${summary ? `<p>${esc(tr('rare.contacted'))}: ${summary.contacted} · ${esc(tr('status.accepted'))}: ${summary.accepted} · ${esc(tr('status.declined'))}: ${summary.declined} · ${esc(tr('status.expired'))}: ${summary.expired}</p>` : `<p>${esc(tr('rare.notStarted'))}</p>`}</div><div class="drive-actions">${history?.can_expand ? `<button class="btn btn-secondary btn-sm" data-action="expand-rare-dispatch" data-request-id="${item.id}">${esc(tr('rare.expandCohort'))}</button>` : ''}${history?.can_start ?? true ? `<button class="btn btn-primary btn-sm" data-action="start-rare-dispatch" data-request-id="${item.id}">${esc(tr('rare.startMatching'))}</button>` : ''}</div></div>${history?.alerts?.length ? `<div class="rare-response-list">${history.alerts.map(alert => `<span><strong>${esc(alert.donor_reference)}</strong>${statusBadge(alert.response)}<small>${esc(tr('rare.tier'))} ${alert.tier} · ${esc(fmtDate(alert.responded_at || alert.response_deadline))}</small></span>`).join('')}</div>` : ''}<small>${esc(tr('rare.facilityPrivacy'))}</small></section>` : '';
+    return `<article class="card request-card"><div class="request-type">${esc(item.blood_type)}</div><div><h2>${esc(domainLabel('component', item.component_type))} · ${item.units_needed} ${esc(tr('common.units'))}</h2><p>${esc(domainLabel('urgency', item.urgency))} · ${esc(fmtDate(item.expires_at))}</p><p><span class="badge ${item.ocr_status === 'OCR_MATCHED_REVIEW_REQUIRED' ? 'badge-green' : 'badge-amber'}">${esc(statusLabel(item.ocr_status))}</span> <small>${esc(tr('requests.ocrNotAuthenticity'))}</small></p></div><div class="drive-actions">${statusBadge(item.status)}${item.status === 'PENDING' ? `<button class="btn btn-primary btn-sm" data-action="review-request" data-request-id="${item.id}">${esc(tr('requests.reviewDocument'))}</button>` : ''}</div>${rarePanel}</article>`;
+  }).join('');
+  return `${pageHeader('requests.title','requests.subtitle',verified ? button('new-request','requests.create','plus') : '')}${verified ? `<div class="stack">${cards || emptyState('file','requests.empty','requests.emptyHelp',button('new-request','requests.create','plus'))}</div>` : `<article class="card">${emptyState('lock','hospital.verificationRequired','hospital.verificationRequiredHelp')}</article>`}`;
 }
 
 function renderVenue() {
@@ -436,8 +510,8 @@ function venueProposals() {
 }
 
 function venueImpact() {
-  const linked = state.proposals.filter(item => item.resulting_drive_id);
-  return `${pageHeader('venue.impactTitle','venue.impactSubtitle')}<div class="grid grid-3">${metric('calendar',String(linked.length),'venue.approvedDrives')}${metric('droplet',String(state.reconciliation?.units_logged || 0),'organizer.unitsLogged')}${metric('users',String(state.reconciliation?.registrations || 0),'organizer.registrations')}</div><article class="card" style="margin-top:18px"><div class="card-body"><p class="muted">${esc(tr('venue.impactPrivacy'))}</p></div></article>`;
+  const totals=state.hostImpact.reduce((sum,item)=>({registrations:sum.registrations+item.registrations,checkins:sum.checkins+item.checkins,units:sum.units+item.units_logged}),{registrations:0,checkins:0,units:0});
+  return `${pageHeader('venue.impactTitle','venue.impactSubtitle')}<div class="grid grid-4 metric-grid-mobile">${metric('calendar',String(state.hostImpact.length),'venue.approvedDrives')}${metric('users',String(totals.registrations),'organizer.registrations')}${metric('scan',String(totals.checkins),'organizer.checkins')}${metric('droplet',String(totals.units),'organizer.unitsLogged')}</div><div class="stack" style="margin-top:18px">${state.hostImpact.length ? state.hostImpact.map(item=>`<article class="card compact-card"><div><strong>${esc(item.drive_name)}</strong><p>${esc(item.venue_name)} · ${esc(fmtDate(item.starts_at))}</p><small>${esc(tr('organizer.registrations'))}: ${item.registrations} · ${esc(tr('organizer.checkins'))}: ${item.checkins} · ${esc(tr('organizer.unitsLogged'))}: ${item.units_logged}</small></div></article>`).join('') : emptyState('chart','venue.noImpact','venue.noImpactHelp')}</div><article class="card" style="margin-top:18px"><div class="card-body"><p class="muted">${esc(tr('venue.impactPrivacy'))}</p></div></article>`;
 }
 
 function renderAdmin() {
@@ -446,6 +520,7 @@ function renderAdmin() {
   if (state.view === 'hospitals') return adminHospitals();
   if (state.view === 'drives') return adminDrives();
   if (state.view === 'data') return adminData();
+  if (state.view === 'privacy') return adminPrivacy();
   if (state.view === 'audit') return adminAudit();
   return adminOverview();
 }
@@ -484,6 +559,10 @@ function adminData() {
       ${table('admin.donations',['common.unitReference','common.drive','common.bloodGroup','common.component','common.date'],data.donations.slice(0,100).map(item => `<tr><td>${esc(item.unit_reference)}</td><td>${esc(item.drive_id)}</td><td>${esc(item.blood_type)}</td><td>${esc(domainLabel('component',item.component_type))}</td><td>${esc(fmtDate(item.collected_at))}</td></tr>`).join(''),5)}
       ${table('admin.requests',['common.reference','common.bloodGroup','common.component','requests.urgency','common.status'],data.requests.slice(0,100).map(item => `<tr><td>${esc(item.id)}</td><td>${esc(item.blood_type)}</td><td>${esc(domainLabel('component',item.component_type))}</td><td>${esc(domainLabel('urgency',item.urgency))}</td><td>${statusBadge(item.status)}</td></tr>`).join(''),5)}
     </div>`;
+}
+
+function adminPrivacy() {
+  return `${pageHeader('privacy.adminTitle','privacy.adminSubtitle',button('refresh-admin','common.refresh','refresh','btn-secondary'))}<div class="stack">${state.adminPrivacyRequests.length ? state.adminPrivacyRequests.map(item => `<article class="card card-pad"><div class="drive-title-row"><div><span class="section-label">${esc(domainLabel('privacyRequest',item.request_type))}</span><h2>${esc(item.user_email || item.user_id)}</h2><p>${esc(item.details || '')}</p><small>${esc(tr('privacy.targetDate'))}: ${esc(fmtDate(item.due_at))}</small></div>${statusBadge(item.status)}</div>${['SUBMITTED','IN_REVIEW'].includes(item.status) ? `<div class="drive-actions"><button class="btn btn-secondary btn-sm" data-action="privacy-decision" data-request-id="${item.id}" data-status="IN_REVIEW">${esc(tr('privacy.inReview'))}</button><button class="btn btn-primary btn-sm" data-action="privacy-decision" data-request-id="${item.id}" data-status="COMPLETED">${esc(tr('common.confirm'))}</button><button class="btn btn-secondary btn-sm" data-action="privacy-decision" data-request-id="${item.id}" data-status="REJECTED">${esc(tr('common.reject'))}</button></div>` : ''}</article>`).join('') : emptyState('lock','privacy.empty','privacy.emptyHelp')}</div>`;
 }
 
 function adminAudit() {
@@ -525,18 +604,18 @@ function profileModal() {
     title: tr(profile.reference_code ? 'common.editProfile' : 'common.completeProfile'),
     subtitle: tr('profile.subtitle'),
     wide: true,
-    body: `<form id="profile-form" class="form-grid"><div class="field"><label>${esc(tr('common.name'))}</label><input class="input" name="full_name" value="${esc(profile.full_name || '')}" autocomplete="name" required minlength="2" autofocus></div><div class="field"><label>${esc(tr('profile.birthDate'))}</label><input class="input" name="date_of_birth" type="date" value="${esc(profile.date_of_birth || '')}" required></div><div class="field"><label>${esc(tr('common.phone'))}</label><input class="input" name="phone" type="tel" autocomplete="tel" value="${esc(profile.phone || '')}" placeholder="+91 99000 00000" required></div><div class="field"><label>${esc(tr('common.city'))}</label><input class="input" name="city" value="${esc(profile.city || '')}" required></div><div class="field"><label>${esc(tr('common.bloodGroup'))}</label><select class="select" name="blood_type" required>${['UNKNOWN','A+','A-','B+','B-','AB+','AB-','O+','O-','BOMBAY'].map(value => `<option value="${value}" ${profile.blood_type === value ? 'selected' : ''}>${value === 'UNKNOWN' ? esc(tr('profile.unknownBlood')) : value}</option>`).join('')}</select><span class="field-hint">${esc(tr('profile.bloodNotice'))}</span></div><div class="field"><label>${esc(tr('common.latitude'))}</label><input class="input" name="latitude" type="number" step="any" value="${esc(profile.latitude ?? '')}" required></div><div class="field"><label>${esc(tr('common.longitude'))}</label><input class="input" name="longitude" type="number" step="any" value="${esc(profile.longitude ?? '')}" required></div><div class="field full location-control"><button class="btn btn-secondary" type="button" data-action="fill-profile-location">${icon('pin','icon-sm')} ${esc(tr('common.useLocation'))}</button><span class="field-hint">${esc(tr('profile.locationNotice'))}</span></div><label class="field full consent-row"><input type="checkbox" name="consent_to_process" required><span>${esc(tr('profile.consent'))}</span></label></form>`,
+    body: `<form id="profile-form" class="form-grid"><div class="field"><label>${esc(tr('common.name'))}</label><input class="input" name="full_name" value="${esc(profile.full_name || '')}" autocomplete="name" required minlength="2" autofocus></div><div class="field"><label>${esc(tr('profile.birthDate'))}</label><input class="input" name="date_of_birth" type="date" value="${esc(profile.date_of_birth || '')}" required></div><div class="field"><label>${esc(tr('common.phone'))}</label><input class="input" name="phone" type="tel" autocomplete="tel" value="${esc(profile.phone || '')}" placeholder="+91 99000 00000" required></div><div class="field"><label>${esc(tr('common.city'))}</label><input class="input" name="city" value="${esc(profile.city || '')}" required></div><div class="field"><label>${esc(tr('common.bloodGroup'))}</label><select class="select" name="blood_type" required>${['UNKNOWN','A+','A-','B+','B-','AB+','AB-','O+','O-','BOMBAY'].map(value => `<option value="${value}" ${profile.blood_type === value ? 'selected' : ''}>${value === 'UNKNOWN' ? esc(tr('profile.unknownBlood')) : value}</option>`).join('')}</select><span class="field-hint">${esc(tr('profile.bloodNotice'))}</span></div><input name="latitude" type="hidden" value="${esc(profile.latitude ?? '')}"><input name="longitude" type="hidden" value="${esc(profile.longitude ?? '')}"><div class="field full location-control approximate-location-control"><button class="btn btn-secondary" type="button" data-action="fill-profile-location">${icon('pin','icon-sm')} ${esc(tr('common.useLocation'))}</button><span id="profile-location-status" class="field-hint">${esc(profile.latitude != null ? tr('profile.approximateLocationSaved') : tr('profile.locationNotice'))}</span><small>${esc(tr('profile.locationMinimization'))}</small></div><label class="field full consent-row"><input type="checkbox" name="consent_to_process" required><span><strong>${esc(tr('profile.consent'))}</strong><small>${esc(tr('profile.consentHelp'))}</small></span></label></form>`,
     footer: `<button class="btn btn-secondary" data-action="close-modal">${esc(tr('common.cancel'))}</button><button class="btn btn-primary" data-action="save-profile">${esc(tr('common.save'))}</button>`
   });
 }
 
 function screeningModal() {
-  const question = (name, labelKey, safeYes = false, optional = false) => `<div class="screening-question"><span><strong>${esc(tr(labelKey))}</strong></span><select class="select" name="${name}" required><option value="">${esc(tr('common.select'))}</option><option value="true">${esc(tr('common.yes'))}</option><option value="false">${esc(tr('common.no'))}</option>${optional ? `<option value="null">${esc(tr('common.notApplicable'))}</option>` : ''}</select><input type="hidden" name="${name}_safe" value="${safeYes}"></div>`;
+  const question = (name, labelKey, _safeYes = false, optional = false) => `<fieldset class="screening-question screening-tap-question"><legend><strong>${esc(tr(labelKey))}</strong></legend><div class="binary-choice"><label><input type="radio" name="${name}" value="true" required><span>${esc(tr('common.yes'))}</span></label><label><input type="radio" name="${name}" value="false" required><span>${esc(tr('common.no'))}</span></label>${optional ? `<label><input type="radio" name="${name}" value="null" required><span>${esc(tr('common.notApplicable'))}</span></label>` : ''}</div></fieldset>`;
   openModal({
     title: tr('screening.title'),
     subtitle: tr('screening.subtitle'),
     wide: true,
-    body: `<form id="screening-form" class="screening-form"><div class="screening-notice">${icon('shield')}<span><strong>${esc(tr('screening.noticeTitle'))}</strong><small>${esc(tr('screening.noticeBody'))}</small></span></div><section><div class="form-grid"><div class="field"><label>${esc(tr('screening.weight'))}</label><input class="input" name="weight_kg" type="number" min="25" max="250" step="0.1" required></div><div class="field"><label>${esc(tr('screening.lastDonation'))}</label><input class="input" name="last_donation_date" type="date"></div></div></section><section><div class="question-list">${question('feeling_well_today','screening.feelingWell',true)}${question('fever_infection_or_antibiotics','screening.infection')}${question('medication_requires_review','screening.medication')}${question('heart_lung_kidney_liver_or_bleeding_condition','screening.conditions')}${question('surgery_transfusion_or_hospitalization_last_12_months','screening.procedure')}${question('tattoo_or_piercing_last_12_months','screening.tattoo')}${question('malaria_risk_travel_or_residence','screening.travel')}${question('pregnancy_breastfeeding_or_recent_delivery','screening.pregnancy',false,true)}</div></section><section class="attestation-block"><label><input type="checkbox" name="answers_are_truthful" required><span><strong>${esc(tr('screening.truth'))}</strong></span></label><label><input type="checkbox" name="consent_to_clinical_review" required><span><strong>${esc(tr('screening.reviewConsent'))}</strong></span></label></section></form>`,
+    body: `<form id="screening-form" class="screening-form"><div class="screening-notice">${icon('shield')}<span><strong>${esc(tr('screening.noticeTitle'))}</strong><small>${esc(tr('screening.noticeBody'))}</small></span></div><section><div class="form-grid"><div class="field"><label>${esc(tr('screening.weight'))}</label><input class="input" name="weight_kg" type="number" min="25" max="250" step="0.1" required></div><div class="field"><label>${esc(tr('screening.lastDonation'))}</label><input class="input" name="last_donation_date" type="date"></div><div class="field"><label>${esc(tr('screening.antibioticsCompleted'))}</label><input class="input" name="antibiotics_completed_date" type="date"><span class="field-hint">${esc(tr('screening.dateIfApplicable'))}</span></div><div class="field"><label>${esc(tr('screening.surgeryDate'))}</label><input class="input" name="surgery_or_transfusion_date" type="date"><span class="field-hint">${esc(tr('screening.dateIfApplicable'))}</span></div><div class="field"><label>${esc(tr('screening.tattooDate'))}</label><input class="input" name="tattoo_or_piercing_date" type="date"><span class="field-hint">${esc(tr('screening.dateIfApplicable'))}</span></div><div class="field"><label>${esc(tr('screening.travelReturnDate'))}</label><input class="input" name="malaria_risk_return_date" type="date"><span class="field-hint">${esc(tr('screening.dateIfApplicable'))}</span></div><div class="field"><label>${esc(tr('screening.pregnancyEndDate'))}</label><input class="input" name="delivery_or_pregnancy_end_date" type="date"><span class="field-hint">${esc(tr('screening.dateIfApplicable'))}</span></div><div class="field full"><label>${esc(tr('screening.reviewFacility'))}</label><select class="select" name="review_hospital_id" required><option value="">${esc(tr('common.select'))}</option>${state.publicCentres.map(item => `<option value="${item.id}">${esc(item.name)} · ${esc(item.city)}${item.distance_km != null ? ` · ${esc(item.distance_km)} ${esc(tr('map.kilometres'))}` : ''}</option>`).join('')}</select><span class="field-hint">${esc(tr('screening.reviewFacilityHelp'))}</span></div></div></section><section><div class="question-list">${question('feeling_well_today','screening.feelingWell',true)}${question('fever_infection_or_antibiotics','screening.infection')}${question('medication_requires_review','screening.medication')}${question('heart_lung_kidney_liver_or_bleeding_condition','screening.conditions')}${question('surgery_transfusion_or_hospitalization_last_12_months','screening.procedure')}${question('tattoo_or_piercing_last_12_months','screening.tattoo')}${question('malaria_risk_travel_or_residence','screening.travel')}${question('pregnancy_breastfeeding_or_recent_delivery','screening.pregnancy',false,true)}</div></section><section class="attestation-block"><label><input type="checkbox" name="answers_are_truthful" required><span><strong>${esc(tr('screening.truth'))}</strong></span></label><label><input type="checkbox" name="consent_to_clinical_review" required><span><strong>${esc(tr('screening.reviewConsent'))}</strong></span></label><label><input type="checkbox" name="consent_to_selected_facility_review" required><span><strong>${esc(tr('screening.selectedFacilityConsent'))}</strong><small>${esc(tr('screening.selectedFacilityConsentHelp'))}</small></span></label></section></form>`,
     footer: `<button class="btn btn-secondary" data-action="close-modal">${esc(tr('common.cancel'))}</button><button class="btn btn-primary" data-action="submit-screening">${esc(tr('screening.submit'))}</button>`
   });
 }
@@ -546,8 +625,25 @@ function driveModal() {
   const end = new Date(Date.now() + 86400000 + 6 * 3600000); end.setMinutes(end.getMinutes() - end.getTimezoneOffset());
   openModal({
     title: tr('organizer.createDrive'), subtitle: tr('organizer.createDriveHelp'), wide: true,
-    body: `<form id="drive-form" class="form-grid"><div class="field full"><label>${esc(tr('common.driveName'))}</label><input class="input" name="name" required minlength="3" autofocus></div><div class="field"><label>${esc(tr('common.venue'))}</label><input class="input" name="venue_name" required></div><div class="field"><label>${esc(tr('common.target'))}</label><input class="input" name="target_units" type="number" min="1" max="1000" value="50" required></div><div class="field full"><label>${esc(tr('common.address'))}</label><textarea class="textarea" name="address" required></textarea></div><div class="field"><label>${esc(tr('common.latitude'))}</label><input class="input" name="latitude" type="number" step="any" required></div><div class="field"><label>${esc(tr('common.longitude'))}</label><input class="input" name="longitude" type="number" step="any" required></div><div class="field full"><button class="btn btn-secondary" type="button" data-action="fill-drive-location">${icon('pin','icon-sm')} ${esc(tr('common.useLocation'))}</button></div><div class="field"><label>${esc(tr('common.starts'))}</label><input class="input" name="starts_at" type="datetime-local" value="${start.toISOString().slice(0,16)}" required></div><div class="field"><label>${esc(tr('common.ends'))}</label><input class="input" name="ends_at" type="datetime-local" value="${end.toISOString().slice(0,16)}" required></div></form>`,
+    body: `<form id="drive-form" class="form-grid"><div class="field full"><label>${esc(tr('common.driveName'))}</label><input class="input" name="name" required minlength="3" autofocus></div><div class="field"><label>${esc(tr('common.venue'))}</label><input class="input" name="venue_name" required></div><div class="field"><label>${esc(tr('common.target'))}</label><input class="input" name="target_units" type="number" min="1" max="1000" value="50" required></div><div class="field full"><label>${esc(tr('common.address'))}</label><textarea class="textarea" name="address" required></textarea></div><div class="field"><label>${esc(tr('common.latitude'))}</label><input class="input" name="latitude" type="number" step="any"><span class="field-hint">${esc(tr('organizer.coordinatesOptional'))}</span></div><div class="field"><label>${esc(tr('common.longitude'))}</label><input class="input" name="longitude" type="number" step="any"><span class="field-hint">${esc(tr('organizer.coordinatesOptional'))}</span></div><div class="field full"><button class="btn btn-secondary" type="button" data-action="fill-drive-location">${icon('pin','icon-sm')} ${esc(tr('common.useLocation'))}</button></div><div class="field"><label>${esc(tr('common.starts'))}</label><input class="input" name="starts_at" type="datetime-local" value="${start.toISOString().slice(0,16)}" required></div><div class="field"><label>${esc(tr('common.ends'))}</label><input class="input" name="ends_at" type="datetime-local" value="${end.toISOString().slice(0,16)}" required></div></form>`,
     footer: `<button class="btn btn-secondary" data-action="close-modal">${esc(tr('common.cancel'))}</button><button class="btn btn-primary" data-action="save-drive">${esc(tr('organizer.createDrive'))}</button>`
+  });
+}
+
+function quotaModal() {
+  const drive = activeDrive();
+  if (!drive) { toast(tr('error.title'), tr('intake.selectDrive'), 'warning'); return; }
+  const current = Object.fromEntries(state.driveQuotas.map(item => [item.blood_type, item]));
+  const recommendations = Object.fromEntries(state.quotaRecommendations.map(item => [item.blood_type, item]));
+  const groups = ['A+','A-','B+','B-','AB+','AB-','O+','O-','BOMBAY'];
+  openModal({
+    title: tr('quota.title'), subtitle: tr('quota.subtitle'), wide: true,
+    body: `<form id="quota-form" data-drive-id="${drive.id}"><div class="config-note">${icon('shield','icon-sm')} ${esc(tr('quota.advisory'))}</div><div class="quota-grid">${groups.map(group => {
+      const item = current[group]; const suggestion = recommendations[group];
+      const requests = state.verifiedNeeds.filter(request => request.blood_type === group);
+      return `<article class="quota-row"><div class="quota-group">${esc(group)}</div><label class="field"><span>${esc(tr('quota.maximum'))}</span><input class="input" name="max_${group}" type="number" min="0" max="1000" value="${item?.max_registrations ?? suggestion?.suggested_max_registrations ?? 0}"></label><label class="field"><span>${esc(tr('quota.verifiedNeed'))}</span><select class="select" name="request_${group}"><option value="">${esc(tr('common.none'))}</option>${requests.map(request => `<option value="${request.id}" ${item?.source_request_id === request.id ? 'selected' : ''}>${esc(request.facility_name)} · ${request.units_needed} ${esc(tr('common.units'))}</option>`).join('')}</select></label><label class="field"><span>${esc(tr('common.note'))}</span><input class="input" name="reason_${group}" value="${esc(item?.rationale || '')}" placeholder="${esc(tr('quota.reasonPlaceholder'))}"></label><label class="quota-active"><input type="checkbox" name="active_${group}" ${item?.active ?? true ? 'checked' : ''}> ${esc(tr('common.active'))}</label><small>${esc(tr('quota.suggested'))}: ${suggestion?.suggested_max_registrations ?? 0} · ${esc(tr('quota.need'))}: ${suggestion?.verified_need_units ?? 0} · ${esc(tr('quota.available'))}: ${suggestion?.available_inventory_units ?? 0}</small></article>`;
+    }).join('')}</div></form>`,
+    footer: `<button class="btn btn-secondary" data-action="close-modal">${esc(tr('common.cancel'))}</button><button class="btn btn-primary" data-action="save-quotas">${esc(tr('common.save'))}</button>`
   });
 }
 
@@ -611,6 +707,94 @@ function requestModal() {
     title: tr('requests.create'), subtitle: tr('requests.createHelp'), wide: true,
     body: `<form id="request-form" class="form-grid"><div class="field"><label>${esc(tr('requests.patientReference'))}</label><input class="input" name="patient_reference" required></div><div class="field"><label>${esc(tr('common.bloodGroup'))}</label><select class="select" name="blood_type">${['O-','O+','A-','A+','B-','B+','AB-','AB+','BOMBAY'].map(value => `<option>${value}</option>`).join('')}</select></div><div class="field"><label>${esc(tr('common.component'))}</label><select class="select" name="component_type">${['PRBC','SDP','RDP','FFP','CRYOPRECIPITATE','WHOLE_BLOOD'].map(value => `<option value="${value}">${esc(domainLabel('component', value))}</option>`).join('')}</select></div><div class="field"><label>${esc(tr('common.units'))}</label><input class="input" name="units_needed" type="number" min="1" max="20" value="2" required></div><div class="field"><label>${esc(tr('requests.urgency'))}</label><select class="select" name="urgency">${['HIGH','MEDIUM','LOW','RARE_STANDBY','CRITICAL_PPH'].map(value => `<option value="${value}">${esc(domainLabel('urgency', value))}</option>`).join('')}</select></div><div class="field"><label>${esc(tr('requests.validHours'))}</label><input class="input" name="expires_in_hours" type="number" min="1" max="12" value="8"></div><div class="field full"><label>${esc(tr('requests.document'))}</label><input class="input" name="slip" type="file" accept="application/pdf,image/jpeg,image/png" required></div></form>`,
     footer: `<button class="btn btn-secondary" data-action="close-modal">${esc(tr('common.cancel'))}</button><button class="btn btn-primary" data-action="save-request">${esc(tr('common.submit'))}</button>`
+  });
+}
+
+function requestReviewModal(requestId) {
+  const request = state.hospitalRequests.find(item => item.id === requestId); if (!request) return;
+  const fields = request.ocr_fields || {};
+  const matched = request.ocr_status === 'OCR_MATCHED_REVIEW_REQUIRED';
+  const candidate = value => Array.isArray(value) ? value.join(', ') : (value || tr('common.none'));
+  openModal({
+    title:tr('requests.reviewDocument'), subtitle:tr('requests.reviewDocumentHelp'),
+    body:`<form id="request-review-form" data-request-id="${request.id}"><div class="ocr-review-grid"><div><span>${esc(tr('common.bloodGroup'))}</span><strong>${esc(candidate(fields.blood_groups))}</strong></div><div><span>${esc(tr('requests.documentDate'))}</span><strong>${esc(candidate(fields.document_dates))}</strong></div><div><span>${esc(tr('hospital.facility'))}</span><strong>${esc(candidate(fields.facility_candidates))}</strong></div><div><span>${esc(tr('common.status'))}</span><strong>${esc(statusLabel(request.ocr_status))}</strong></div></div><div class="config-warning">${icon('alert','icon-sm')} ${esc(tr('requests.ocrNotAuthenticity'))}</div><div class="attestation-block"><label><input type="checkbox" name="physician_registration_confirmed" required><span><strong>${esc(tr('requests.physicianConfirmed'))}</strong></span></label><label><input type="checkbox" name="component_confirmed" required><span><strong>${esc(tr('requests.componentConfirmed'))}</strong></span></label><label><input type="checkbox" name="document_review_confirmed" required><span><strong>${esc(tr('requests.documentReviewed'))}</strong></span></label>${matched ? '' : `<label><input type="checkbox" name="ocr_mismatch_resolved" required><span><strong>${esc(tr('requests.manualResolution'))}</strong></span></label>`}</div><div class="field"><label>${esc(tr('common.note'))}</label><textarea class="textarea" name="review_note" required></textarea></div></form>`,
+    footer:`<button class="btn btn-secondary" data-action="close-modal">${esc(tr('common.cancel'))}</button><button class="btn btn-primary" data-action="save-request-review">${esc(tr('requests.verify'))}</button>`
+  });
+}
+
+function receiveComponentModal(scannedCode = '') {
+  const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  openModal({
+    title: tr('components.receive'), subtitle: tr('components.scanExistingHelp'),
+    body: `<form id="component-receive-form" class="form-grid"><div class="field full"><label>${esc(tr('components.scannedCode'))}</label><input class="input" name="scanned_code" value="${esc(scannedCode)}" required minlength="6" autofocus><span class="field-hint">${esc(tr('components.noCertifiedGeneration'))}</span></div><div class="field full scan-actions"><button class="btn btn-secondary" type="button" data-action="start-unit-camera">${icon('camera','icon-sm')} ${esc(tr('intake.openCamera'))}</button><label class="btn btn-secondary file-button">${icon('upload','icon-sm')} ${esc(tr('components.scanLabelPhoto'))}<input id="unit-barcode-image" type="file" accept="image/*" capture="environment" hidden></label></div><div class="field"><label>${esc(tr('components.receivedAt'))}</label><input class="input" name="received_at" type="datetime-local" value="${now.toISOString().slice(0,16)}" required></div><div class="field"><label>${esc(tr('components.temperature'))}</label><input class="input" name="temperature_c" type="number" min="-80" max="40" step="0.1" required></div><div class="field full"><label>${esc(tr('common.reference'))}</label><input class="input" name="event_reference" required placeholder="GRN / receipt / scan event"></div></form>`,
+    footer: `<button class="btn btn-secondary" data-action="close-modal">${esc(tr('common.cancel'))}</button><button class="btn btn-primary" data-action="save-component-receipt">${esc(tr('components.receive'))}</button>`
+  });
+}
+
+function componentPolicyModal() {
+  openModal({
+    title: tr('components.policies'), subtitle: tr('components.policyHelp'),
+    body: `<form id="component-policy-form" class="form-grid"><div class="field"><label>${esc(tr('common.component'))}</label><select class="select" name="component_type">${['WHOLE_BLOOD','PRBC','RBC','SDP','RDP','PLATELETS','FFP','CRYOPRECIPITATE'].map(value => `<option value="${value}">${esc(domainLabel('component',value))}</option>`).join('')}</select></div><div class="field"><label>${esc(tr('components.shelfLifeHours'))}</label><input class="input" name="shelf_life_hours" type="number" min="1" max="20000" required></div><div class="field"><label>${esc(tr('components.minimumTemperature'))}</label><input class="input" name="minimum_temperature_c" type="number" min="-80" max="40" step="0.1"></div><div class="field"><label>${esc(tr('components.maximumTemperature'))}</label><input class="input" name="maximum_temperature_c" type="number" min="-80" max="40" step="0.1"></div><div class="field full"><label>${esc(tr('components.policyReference'))}</label><input class="input" name="policy_reference" required minlength="3" placeholder="Facility SOP / regulatory reference"></div><label class="field full consent-row"><input type="checkbox" name="authorized_confirmation" required><span>${esc(tr('components.policyConfirmation'))}</span></label></form>`,
+    footer: `<button class="btn btn-secondary" data-action="close-modal">${esc(tr('common.cancel'))}</button><button class="btn btn-primary" data-action="save-component-policy">${esc(tr('common.save'))}</button>`
+  });
+}
+
+function componentEventModal(componentId) {
+  const component = state.components.find(item => item.id === componentId); if (!component) return;
+  const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  openModal({
+    title: tr('components.recordEvent'), subtitle: component.component_reference,
+    body: `<form id="component-event-form" data-component-id="${component.id}" class="form-grid"><div class="field"><label>${esc(tr('common.status'))}</label><select class="select" name="event_type">${['RESERVED','RELEASED','ISSUED','TRANSFUSED','DISCARDED','QUARANTINED'].map(value => `<option value="${value}">${esc(statusLabel(value))}</option>`).join('')}</select></div><div class="field"><label>${esc(tr('common.date'))}</label><input class="input" name="occurred_at" type="datetime-local" value="${now.toISOString().slice(0,16)}" required></div><div class="field"><label>${esc(tr('components.temperatureOptional'))}</label><input class="input" name="temperature_c" type="number" min="-80" max="40" step="0.1"></div><div class="field"><label>${esc(tr('common.reference'))}</label><input class="input" name="event_reference" required></div><div class="field full"><label>${esc(tr('common.note'))}</label><textarea class="textarea" name="note"></textarea></div><label class="field full consent-row"><input type="checkbox" name="authorized_confirmation" required><span>${esc(tr('components.eventConfirmation'))}</span></label><div class="config-note">${icon('lock','icon-sm')} ${esc(tr('components.noPatientIdentity'))}</div></form>`,
+    footer: `<button class="btn btn-secondary" data-action="close-modal">${esc(tr('common.cancel'))}</button><button class="btn btn-primary" data-action="save-component-event">${esc(tr('common.save'))}</button>`
+  });
+}
+
+function splitComponentModal(componentId) {
+  const component = state.components.find(item => item.id === componentId); if (!component) return;
+  const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  const row = index => `<div class="component-prep-row"><input class="input" name="reference_${index}" placeholder="${esc(tr('common.unitReference'))}${index === 1 ? '' : ` ${index}`}" ${index === 1 ? 'required' : ''}><select class="select" name="type_${index}">${['PRBC','RBC','SDP','RDP','PLATELETS','FFP','CRYOPRECIPITATE'].map(value => `<option value="${value}">${esc(domainLabel('component',value))}</option>`).join('')}</select><input class="input" name="isbt_${index}" placeholder="${esc(tr('components.existingIsbtOptional'))}"><input class="input" name="volume_${index}" type="number" min="1" max="2000" placeholder="mL"></div>`;
+  openModal({
+    title: tr('components.separate'), subtitle: component.component_reference, wide: true,
+    body: `<form id="component-split-form" data-component-id="${component.id}"><div class="field"><label>${esc(tr('components.preparedAt'))}</label><input class="input" name="prepared_at" type="datetime-local" value="${now.toISOString().slice(0,16)}" required></div><div class="component-prep-grid">${row(1)}${row(2)}${row(3)}</div><label class="field full consent-row"><input type="checkbox" name="sop_confirmation" required><span>${esc(tr('components.sopConfirmation'))}</span></label><div class="config-note">${icon('alert','icon-sm')} ${esc(tr('components.expiryCalculatedFromPolicy'))}</div></form>`,
+    footer: `<button class="btn btn-secondary" data-action="close-modal">${esc(tr('common.cancel'))}</button><button class="btn btn-primary" data-action="save-component-split">${esc(tr('common.save'))}</button>`
+  });
+}
+
+function handoverModal(componentId) {
+  const component = state.components.find(item => item.id === componentId); if (!component) return;
+  const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  const destinations = state.facilityCentres.filter(item => item.id !== state.hospitalProfile?.id);
+  openModal({
+    title: tr('components.handover'), subtitle: component.component_reference,
+    body: `<form id="handover-form" data-component-id="${component.id}" class="form-grid"><div class="field full"><label>${esc(tr('components.destination'))}</label><select class="select" name="to_hospital_id" required><option value="">${esc(tr('common.select'))}</option>${destinations.map(item => `<option value="${item.id}">${esc(item.name)} · ${esc(item.city)}</option>`).join('')}</select></div><div class="field"><label>${esc(tr('components.handedOverAt'))}</label><input class="input" name="handed_over_at" type="datetime-local" value="${now.toISOString().slice(0,16)}" required></div><div class="field"><label>${esc(tr('components.temperature'))}</label><input class="input" name="dispatch_temperature_c" type="number" min="-80" max="40" step="0.1" required></div><div class="field full"><label>${esc(tr('components.containerReference'))}</label><input class="input" name="container_reference" required></div><div class="field full"><label>${esc(tr('common.note'))}</label><textarea class="textarea" name="notes"></textarea></div></form>`,
+    footer: `<button class="btn btn-secondary" data-action="close-modal">${esc(tr('common.cancel'))}</button><button class="btn btn-primary" data-action="save-handover">${esc(tr('common.confirm'))}</button>`
+  });
+}
+
+function receiveHandoverModal(handoverId) {
+  const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  openModal({
+    title: tr('components.confirmReceipt'), subtitle: tr('components.receiveHandoverHelp'),
+    body: `<form id="handover-receive-form" data-handover-id="${handoverId}" class="form-grid"><div class="field"><label>${esc(tr('components.receivedAt'))}</label><input class="input" name="received_at" type="datetime-local" value="${now.toISOString().slice(0,16)}" required></div><div class="field"><label>${esc(tr('components.temperature'))}</label><input class="input" name="receipt_temperature_c" type="number" min="-80" max="40" step="0.1" required></div><div class="field full"><label>${esc(tr('common.note'))}</label><textarea class="textarea" name="notes"></textarea></div><label class="field full consent-row"><input type="checkbox" name="receipt_confirmation" required><span>${esc(tr('components.receiptConfirmation'))}</span></label></form>`,
+    footer: `<button class="btn btn-secondary" data-action="close-modal">${esc(tr('common.cancel'))}</button><button class="btn btn-primary" data-action="save-handover-receipt">${esc(tr('common.confirm'))}</button>`
+  });
+}
+
+async function componentHistoryModal(componentId) {
+  try {
+    const events = await apiFetch(`/components/${componentId}/events`);
+    openModal({
+      title: tr('components.history'), subtitle: tr('components.historyHelp'),
+      body: events.length ? `<div class="timeline">${events.map(item => `<article><span>${icon('activity','icon-sm')}</span><div><strong>${esc(statusLabel(item.event_type))}</strong><p>${esc(fmtDate(item.occurred_at))}${item.temperature_c != null ? ` · ${esc(item.temperature_c)} °C` : ''}</p><small>${esc(item.event_reference || '')}</small></div></article>`).join('')}</div>` : emptyState('activity','components.noEvents','components.noEventsHelp')
+    });
+  } catch (error) { toast(tr('error.title'), friendlyError(error), 'warning'); }
+}
+
+function privacyRequestModal() {
+  openModal({
+    title:tr('privacy.request'), subtitle:tr('privacy.requestHelp'),
+    body:`<form id="privacy-request-form"><div class="field"><label>${esc(tr('privacy.requestType'))}</label><select class="select" name="request_type">${['ACCESS','CORRECTION','ERASURE','CONSENT_WITHDRAWAL','NOMINATION','GRIEVANCE'].map(value => `<option value="${value}">${esc(domainLabel('privacyRequest',value))}</option>`).join('')}</select></div><div class="field"><label>${esc(tr('privacy.details'))}</label><textarea class="textarea" name="details" minlength="10" maxlength="2000" required></textarea></div><div class="config-note">${icon('shield','icon-sm')} ${esc(tr('privacy.retentionNotice'))}</div></form>`,
+    footer:`<button class="btn btn-secondary" data-action="close-modal">${esc(tr('common.cancel'))}</button><button class="btn btn-primary" data-action="save-privacy-request">${esc(tr('common.submit'))}</button>`
   });
 }
 
@@ -739,6 +923,10 @@ function nearbyQuery() {
 
 async function loadNearbyData() {
   const queryString = nearbyQuery();
+  if (state.account && state.preferences?.location_matching_opt_in === false) {
+    state.publicDrives = []; state.publicRequests = []; state.publicCentres = [];
+    return;
+  }
   if (state.account?.roles?.includes('ROLE_DONOR') && !queryString) {
     state.publicDrives = []; state.publicRequests = []; state.publicCentres = [];
     return;
@@ -771,17 +959,36 @@ async function loadPublicData() {
 
 async function loadAuthenticatedData() {
   await loadPublicData();
+  [state.preferences, state.consentHistory, state.privacyRequests] = await Promise.all([
+    safeApi('/preferences/me', {
+      appearance: state.theme.toUpperCase(), language: state.locale,
+      in_app_notifications: true, email_notifications: false, sms_notifications: false,
+      rare_blood_opt_in: false, location_matching_opt_in: true, donation_lifecycle_opt_in: false
+    }),
+    safeApi('/privacy/me/consents', []),
+    safeApi('/privacy/me/requests', [])
+  ]);
+  if (state.preferences?.appearance && state.preferences.appearance !== 'SYSTEM') {
+    state.theme = state.preferences.appearance.toLowerCase();
+    document.documentElement.dataset.theme = state.theme;
+  }
+  if (state.preferences?.language && state.preferences.language !== state.locale) {
+    state.locale = await loadLocale(state.preferences.language);
+    setLocale(state.locale);
+  }
   const roles = state.account.roles;
   state.hospitalProfile = await safeApi('/hospitals/me');
   state.hospitalDocuments = state.hospitalProfile ? await safeApi(`/hospitals/${state.hospitalProfile.id}/documents`, []) : [];
   if (roles.includes('ROLE_DONOR')) {
     state.profile = await safeApi('/donors/me/profile');
     await loadNearbyData();
-    [state.registrations, state.donationHistory, state.donorAlerts] = await Promise.all([
-      safeApi('/drives/registrations/mine', []), safeApi('/donors/me/donations', []), safeApi('/donors/me/alerts', [])
+    [state.registrations, state.donationHistory, state.donorAlerts, state.donorUnitNotifications] = await Promise.all([
+      safeApi('/drives/registrations/mine', []), safeApi('/donors/me/donations', []),
+      safeApi('/donors/me/alerts', []), safeApi('/donors/me/unit-notifications', [])
     ]);
   }
   if (roles.includes('ROLE_ORGANIZER') || roles.includes('ROLE_SUPER_ADMIN')) {
+    state.verifiedNeeds = await publicApiFetch('/public/requests').catch(() => []);
     [state.drives, state.proposals, state.campaigns] = await Promise.all([
       safeApi('/drives/mine', []), safeApi('/drives/proposals/mine', []), safeApi('/campaigns/mine', [])
     ]);
@@ -792,22 +999,37 @@ async function loadAuthenticatedData() {
   if (roles.includes('ROLE_HOSPITAL') || roles.includes('ROLE_SUPER_ADMIN')) {
     state.clinicalQueue = await safeApi('/clinical/screenings?review_status=ALL', []);
     if (state.hospitalProfile?.status === 'VERIFIED') {
-      [state.inventory, state.inventoryEvents, state.hospitalRequests] = await Promise.all([
-        safeApi('/hospitals/inventory/me', []), safeApi('/hospitals/inventory/events', []), safeApi('/requests/mine', [])
+      state.facilityCentres = await publicApiFetch('/public/centres').catch(() => []);
+      [state.inventory, state.inventoryEvents, state.hospitalRequests, state.components, state.componentExpiry, state.componentPolicies, state.handovers] = await Promise.all([
+        safeApi('/hospitals/inventory/me', []), safeApi('/hospitals/inventory/events', []),
+        safeApi('/requests/mine', []), safeApi('/components/mine', []),
+        safeApi('/components/expiry-summary', {}), safeApi('/components/policies/mine', []),
+        safeApi('/components/handovers/mine', [])
       ]);
+      const rareHistories = await Promise.all(
+        state.hospitalRequests
+          .filter(item => item.urgency === 'RARE_STANDBY' && item.status === 'VERIFIED')
+          .map(async item => [item.id, await safeApi(`/logistics/rare/${item.id}/history`, null)])
+      );
+      state.rareDispatchHistory = Object.fromEntries(rareHistories.filter(([, history]) => history));
     }
   }
-  if (roles.includes('ROLE_HOST_VENUE') && !roles.includes('ROLE_ORGANIZER')) {
-    state.proposals = await safeApi('/drives/proposals/mine', []);
+  if (roles.includes('ROLE_HOST_VENUE')) {
+    if (!roles.includes('ROLE_ORGANIZER')) state.proposals = await safeApi('/drives/proposals/mine', []);
+    state.hostImpact = await safeApi('/drives/proposals/host-impact', []);
   }
   if (roles.includes('ROLE_SUPER_ADMIN')) await loadAdminData();
 }
 
 async function loadActiveDriveData() {
-  if (!state.activeDriveId) { state.roster = []; state.reconciliation = null; return; }
-  [state.roster, state.reconciliation] = await Promise.all([
+  if (!state.activeDriveId) {
+    state.roster = []; state.reconciliation = null; state.driveQuotas = []; state.quotaRecommendations = []; return;
+  }
+  [state.roster, state.reconciliation, state.driveQuotas, state.quotaRecommendations] = await Promise.all([
     safeApi(`/drives/${state.activeDriveId}/roster`, []),
-    safeApi(`/drives/${state.activeDriveId}/reconciliation`)
+    safeApi(`/drives/${state.activeDriveId}/reconciliation`),
+    safeApi(`/drives/${state.activeDriveId}/quotas`, []),
+    safeApi(`/drives/${state.activeDriveId}/quota-recommendations`, [])
   ]);
 }
 
@@ -817,9 +1039,10 @@ async function loadCampaignStats() {
 }
 
 async function loadAdminData() {
-  [state.adminOverview, state.adminUsers, state.invitations, state.hospitalApplications, state.adminData, state.audit] = await Promise.all([
+  [state.adminOverview, state.adminUsers, state.invitations, state.hospitalApplications, state.adminData, state.audit, state.adminPrivacyRequests] = await Promise.all([
     safeApi('/admin/overview', {}), safeApi('/admin/users', []), safeApi('/admin/invitations', []),
-    safeApi('/hospitals/applications', []), safeApi('/admin/data', {}), safeApi('/admin/audit', [])
+    safeApi('/hospitals/applications', []), safeApi('/admin/data', {}), safeApi('/admin/audit', []),
+    safeApi('/privacy/admin/requests', [])
   ]);
 }
 
@@ -829,11 +1052,120 @@ async function refreshCurrent() {
   state.screen = 'app'; render();
 }
 
+function applyAppearance(appearance) {
+  const normalized = ['LIGHT','DARK','SYSTEM'].includes(appearance) ? appearance : 'SYSTEM';
+  state.preferences = { ...(state.preferences || {}), appearance: normalized };
+  state.theme = normalized === 'SYSTEM'
+    ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+    : normalized.toLowerCase();
+  storage.setItem('raktflow-theme', state.theme);
+  document.documentElement.dataset.theme = state.theme;
+}
+
+async function savePreferences(quiet = false) {
+  const existing = state.preferences || {};
+  const previousLocationMatching = existing.location_matching_opt_in ?? true;
+  const payload = {
+    appearance: existing.appearance || state.theme.toUpperCase(), language: state.locale,
+    in_app_notifications: existing.in_app_notifications ?? true,
+    email_notifications: existing.email_notifications ?? false,
+    sms_notifications: existing.sms_notifications ?? false,
+    rare_blood_opt_in: existing.rare_blood_opt_in ?? false,
+    location_matching_opt_in: existing.location_matching_opt_in ?? true,
+    donation_lifecycle_opt_in: existing.donation_lifecycle_opt_in ?? false,
+  };
+  for (const input of document.querySelectorAll('[data-preference]')) payload[input.dataset.preference] = input.checked;
+  try {
+    state.preferences = await apiFetch('/preferences/me', { method:'PUT', body:JSON.stringify(payload) });
+    if (previousLocationMatching && !state.preferences.location_matching_opt_in && state.profile) {
+      state.profile.latitude = null; state.profile.longitude = null;
+      state.publicDrives=[]; state.publicRequests=[]; state.publicCentres=[];
+    }
+    if (!previousLocationMatching && state.preferences.location_matching_opt_in && !state.profile?.latitude) {
+      toast(tr('settings.locationNeededTitle'),tr('settings.locationNeededHelp'),'warning');
+    }
+    if (!quiet) toast(tr('success.title'), tr('settings.saved'));
+    render();
+  } catch (error) { toast(tr('error.title'), friendlyError(error), 'warning'); }
+}
+
+async function downloadPersonalData() {
+  try {
+    const data = await apiFetch('/privacy/me/export');
+    const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    const anchor=document.createElement('a'); anchor.href=URL.createObjectURL(blob);
+    anchor.download=`raktflow-personal-data-${new Date().toISOString().slice(0,10)}.json`; anchor.click();
+    setTimeout(()=>URL.revokeObjectURL(anchor.href),1000);
+    toast(tr('success.title'),tr('privacy.exportReady'));
+  } catch(error){toast(tr('error.title'),friendlyError(error),'warning');}
+}
+
+async function savePrivacyRequest() {
+  const form=document.querySelector('#privacy-request-form'); if(!form?.reportValidity()) return;
+  const data=new FormData(form);
+  try {
+    await apiFetch('/privacy/me/requests',{method:'POST',body:JSON.stringify({request_type:data.get('request_type'),details:data.get('details')})});
+    state.privacyRequests=await apiFetch('/privacy/me/requests'); state.preferences=await apiFetch('/preferences/me');
+    if (data.get('request_type') === 'CONSENT_WITHDRAWAL' && state.profile) {
+      state.profile.latitude=null; state.profile.longitude=null; state.publicDrives=[]; state.publicRequests=[]; state.publicCentres=[];
+    }
+    closeModal();render();toast(tr('success.title'),tr('privacy.requestSaved'));
+  } catch(error){toast(tr('error.title'),friendlyError(error),'warning');}
+}
+
+async function decidePrivacyRequest(id,nextStatus) {
+  const note=window.prompt(tr('privacy.resolutionNote'),'') ?? ''; if(!note.trim()) return;
+  try { await apiFetch(`/privacy/admin/requests/${id}`,{method:'PATCH',body:JSON.stringify({status:nextStatus,resolution_note:note})}); state.adminPrivacyRequests=await apiFetch('/privacy/admin/requests');render();toast(tr('success.title'),tr('privacy.decisionSaved')); }
+  catch(error){toast(tr('error.title'),friendlyError(error),'warning');}
+}
+
+async function readUnitNotification(id) {
+  try {
+    await apiFetch(`/donors/me/unit-notifications/${id}/read`, { method:'POST' });
+    state.donorUnitNotifications = await apiFetch('/donors/me/unit-notifications');
+    render();
+  } catch (error) { toast(tr('error.title'), friendlyError(error), 'warning'); }
+}
+
+async function respondRareAlert(id, response) {
+  try {
+    await apiFetch(`/donors/me/alerts/${id}/response`, {
+      method:'POST', body:JSON.stringify({ response })
+    });
+    state.donorAlerts = await apiFetch('/donors/me/alerts');
+    render();
+    toast(tr('success.title'), tr('rare.responseSaved'));
+  } catch (error) { toast(tr('error.title'),friendlyError(error),'warning'); }
+}
+
+async function updateRareDispatch(requestId, expand = false) {
+  try {
+    await apiFetch(
+      expand ? `/logistics/rare/${requestId}/expand` : '/logistics/rare/dispatch',
+      { method:'POST', body:expand ? '{}' : JSON.stringify({ request_id:requestId }) }
+    );
+    state.rareDispatchHistory[requestId] = await apiFetch(`/logistics/rare/${requestId}/history`);
+    render();
+    toast(tr('success.title'), tr(expand ? 'rare.cohortExpanded' : 'rare.matchingStarted'));
+  } catch (error) { toast(tr('error.title'),friendlyError(error),'warning'); }
+}
+
+async function refreshEligibility() {
+  try {
+    state.profile = await apiFetch('/donors/me/profile');
+    render();
+    toast(tr('success.title'), tr('donor.reviewRefreshed'));
+  } catch (error) { toast(tr('error.title'), friendlyError(error), 'warning'); }
+}
+
 async function saveProfile() {
   const form = document.querySelector('#profile-form'); if (!form?.reportValidity()) return;
   const data = new FormData(form);
+  if (!data.get('latitude') || !data.get('longitude')) {
+    toast(tr('error.title'),tr('profile.locationRequired'),'warning'); return;
+  }
   const payload = { full_name:data.get('full_name'), date_of_birth:data.get('date_of_birth'), phone:data.get('phone'), city:data.get('city'), latitude:Number(data.get('latitude')), longitude:Number(data.get('longitude')), blood_type:data.get('blood_type'), consent_to_process:data.has('consent_to_process'), emergency_notifications:false };
-  try { state.profile = await apiFetch('/donors/me/profile', { method:'PUT', body:JSON.stringify(payload) }); await loadNearbyData(); closeModal(); render(); toast(tr('success.title'), tr('success.profileSaved')); }
+  try { state.profile = await apiFetch('/donors/me/profile', { method:'PUT', body:JSON.stringify(payload) }); state.preferences=await apiFetch('/preferences/me'); await loadNearbyData(); closeModal(); render(); toast(tr('success.title'), tr('success.profileSaved')); }
   catch (error) { toast(tr('error.title'), friendlyError(error), 'warning'); }
 }
 
@@ -842,7 +1174,19 @@ async function saveScreening() {
   const form = document.querySelector('#screening-form'); if (!form?.reportValidity()) return;
   const data = new FormData(form);
   const names = ['feeling_well_today','fever_infection_or_antibiotics','medication_requires_review','heart_lung_kidney_liver_or_bleeding_condition','surgery_transfusion_or_hospitalization_last_12_months','tattoo_or_piercing_last_12_months','malaria_risk_travel_or_residence','pregnancy_breastfeeding_or_recent_delivery'];
-  const payload = { questionnaire_version:'IN-PRECHECK-2026-01', weight_kg:Number(data.get('weight_kg')), last_donation_date:data.get('last_donation_date') || null, answers_are_truthful:data.has('answers_are_truthful'), consent_to_clinical_review:data.has('consent_to_clinical_review') };
+  const payload = {
+    questionnaire_version:'IN-PRECHECK-2026-01', weight_kg:Number(data.get('weight_kg')),
+    last_donation_date:data.get('last_donation_date') || null,
+    antibiotics_completed_date:data.get('antibiotics_completed_date') || null,
+    surgery_or_transfusion_date:data.get('surgery_or_transfusion_date') || null,
+    tattoo_or_piercing_date:data.get('tattoo_or_piercing_date') || null,
+    malaria_risk_return_date:data.get('malaria_risk_return_date') || null,
+    delivery_or_pregnancy_end_date:data.get('delivery_or_pregnancy_end_date') || null,
+    review_hospital_id:data.get('review_hospital_id'),
+    answers_are_truthful:data.has('answers_are_truthful'),
+    consent_to_clinical_review:data.has('consent_to_clinical_review'),
+    consent_to_selected_facility_review:data.has('consent_to_selected_facility_review')
+  };
   names.forEach(name => payload[name] = parseAnswer(data.get(name)));
   try { await apiFetch('/donors/me/screenings', { method:'POST', body:JSON.stringify(payload) }); state.profile = await apiFetch('/donors/me/profile'); closeModal(); render(); toast(tr('success.title'), tr('success.screeningSubmitted')); }
   catch (error) { toast(tr('error.title'), friendlyError(error), 'warning'); }
@@ -851,9 +1195,32 @@ async function saveScreening() {
 async function saveDrive() {
   const form = document.querySelector('#drive-form'); if (!form?.reportValidity()) return;
   const data = new FormData(form);
-  const payload = { name:data.get('name'), venue_name:data.get('venue_name'), address:data.get('address'), target_units:Number(data.get('target_units')), starts_at:new Date(data.get('starts_at')).toISOString(), ends_at:new Date(data.get('ends_at')).toISOString(), latitude:Number(data.get('latitude')), longitude:Number(data.get('longitude')) };
+  const startsAt = new Date(data.get('starts_at'));
+  const endsAt = new Date(data.get('ends_at'));
+  if (!Number.isFinite(startsAt.getTime()) || !Number.isFinite(endsAt.getTime()) || endsAt <= startsAt) {
+    toast(tr('error.title'), tr('organizer.invalidWindow'), 'warning'); return;
+  }
+  const latitude = String(data.get('latitude') || '').trim();
+  const longitude = String(data.get('longitude') || '').trim();
+  if (Boolean(latitude) !== Boolean(longitude)) { toast(tr('error.title'), tr('organizer.coordinatesTogether'), 'warning'); return; }
+  const payload = { name:data.get('name'), venue_name:data.get('venue_name'), address:data.get('address'), target_units:Number(data.get('target_units')), starts_at:startsAt.toISOString(), ends_at:endsAt.toISOString(), latitude:latitude ? Number(latitude) : null, longitude:longitude ? Number(longitude) : null };
   try { const created = await apiFetch('/drives', { method:'POST', body:JSON.stringify(payload) }); closeModal(); state.drives = await apiFetch('/drives/mine'); state.activeDriveId = created.id; await loadActiveDriveData(); render(); toast(tr('success.title'), tr('success.driveCreated')); }
   catch (error) { toast(tr('error.title'), friendlyError(error), 'warning'); }
+}
+
+async function saveQuotas() {
+  const form = document.querySelector('#quota-form'); if (!form?.reportValidity()) return;
+  const data = new FormData(form);
+  const groups = ['A+','A-','B+','B-','AB+','AB-','O+','O-','BOMBAY'];
+  const quotas = groups.map(bloodType => ({
+    blood_type: bloodType, max_registrations: Number(data.get(`max_${bloodType}`)),
+    source_request_id: data.get(`request_${bloodType}`) || null,
+    rationale: String(data.get(`reason_${bloodType}`) || ''), active: data.has(`active_${bloodType}`)
+  }));
+  try {
+    state.driveQuotas = await apiFetch(`/drives/${form.dataset.driveId}/quotas`, { method:'PUT', body:JSON.stringify({ quotas }) });
+    closeModal(); render(); toast(tr('success.title'), tr('quota.saved'));
+  } catch (error) { toast(tr('error.title'), friendlyError(error), 'warning'); }
 }
 
 async function saveProposal() {
@@ -925,6 +1292,68 @@ async function saveInventory() {
   catch (error) { toast(tr('error.title'), friendlyError(error), 'warning'); }
 }
 
+async function reloadComponents() {
+  [state.components, state.componentExpiry, state.componentPolicies, state.handovers] = await Promise.all([
+    apiFetch('/components/mine'), apiFetch('/components/expiry-summary'),
+    apiFetch('/components/policies/mine'), apiFetch('/components/handovers/mine')
+  ]);
+}
+
+async function saveComponentReceipt() {
+  const form = document.querySelector('#component-receive-form'); if (!form?.reportValidity()) return;
+  const data = new FormData(form);
+  const payload = {
+    scanned_code:String(data.get('scanned_code')).trim(), received_at:new Date(data.get('received_at')).toISOString(),
+    temperature_c:Number(data.get('temperature_c')), event_reference:data.get('event_reference')
+  };
+  try { await apiFetch('/components/receive',{method:'POST',body:JSON.stringify(payload)}); closeModal(); await reloadComponents(); render(); toast(tr('success.title'),tr('components.received')); }
+  catch(error){ toast(tr('error.title'),friendlyError(error),'warning'); }
+}
+
+async function saveComponentPolicy() {
+  const form = document.querySelector('#component-policy-form'); if (!form?.reportValidity()) return;
+  const data = new FormData(form); const num = name => data.get(name) === '' ? null : Number(data.get(name));
+  const policy = { component_type:data.get('component_type'), shelf_life_hours:num('shelf_life_hours'), minimum_temperature_c:num('minimum_temperature_c'), maximum_temperature_c:num('maximum_temperature_c'), policy_reference:data.get('policy_reference'), active:true };
+  try { await apiFetch('/components/policies/mine',{method:'PUT',body:JSON.stringify({policies:[policy],authorized_confirmation:data.has('authorized_confirmation')})}); closeModal(); await reloadComponents(); render(); toast(tr('success.title'),tr('components.policySaved')); }
+  catch(error){ toast(tr('error.title'),friendlyError(error),'warning'); }
+}
+
+async function saveComponentEvent() {
+  const form = document.querySelector('#component-event-form'); if (!form?.reportValidity()) return;
+  const data = new FormData(form);
+  const payload = { event_type:data.get('event_type'), occurred_at:new Date(data.get('occurred_at')).toISOString(), event_reference:data.get('event_reference'), temperature_c:data.get('temperature_c') === '' ? null : Number(data.get('temperature_c')), authorized_confirmation:data.has('authorized_confirmation'), note:data.get('note') };
+  try { await apiFetch(`/components/${form.dataset.componentId}/events`,{method:'POST',body:JSON.stringify(payload)}); closeModal(); await reloadComponents(); render(); toast(tr('success.title'),tr('components.eventSaved')); }
+  catch(error){ toast(tr('error.title'),friendlyError(error),'warning'); }
+}
+
+async function saveComponentSplit() {
+  const form = document.querySelector('#component-split-form'); if (!form?.reportValidity()) return;
+  const data = new FormData(form); const components = [];
+  for (let index=1; index<=3; index += 1) {
+    const reference = String(data.get(`reference_${index}`) || '').trim(); if (!reference) continue;
+    components.push({ component_reference:reference, isbt128_code:String(data.get(`isbt_${index}`) || '').trim() || null, component_type:data.get(`type_${index}`), volume_ml:data.get(`volume_${index}`) ? Number(data.get(`volume_${index}`)) : null });
+  }
+  const payload = { prepared_at:new Date(data.get('prepared_at')).toISOString(), components, sop_confirmation:data.has('sop_confirmation') };
+  try { await apiFetch(`/components/${form.dataset.componentId}/split`,{method:'POST',body:JSON.stringify(payload)}); closeModal(); await reloadComponents(); render(); toast(tr('success.title'),tr('components.separated')); }
+  catch(error){ toast(tr('error.title'),friendlyError(error),'warning'); }
+}
+
+async function saveHandover() {
+  const form = document.querySelector('#handover-form'); if (!form?.reportValidity()) return;
+  const data = new FormData(form);
+  const payload = { component_id:form.dataset.componentId, to_hospital_id:data.get('to_hospital_id'), handed_over_at:new Date(data.get('handed_over_at')).toISOString(), dispatch_temperature_c:Number(data.get('dispatch_temperature_c')), container_reference:data.get('container_reference'), notes:data.get('notes') };
+  try { await apiFetch('/components/handovers',{method:'POST',body:JSON.stringify(payload)}); closeModal(); await reloadComponents(); render(); toast(tr('success.title'),tr('components.handoverSaved')); }
+  catch(error){ toast(tr('error.title'),friendlyError(error),'warning'); }
+}
+
+async function saveHandoverReceipt() {
+  const form = document.querySelector('#handover-receive-form'); if (!form?.reportValidity()) return;
+  const data = new FormData(form);
+  const payload = { received_at:new Date(data.get('received_at')).toISOString(), receipt_temperature_c:Number(data.get('receipt_temperature_c')), receipt_confirmation:data.has('receipt_confirmation'), notes:data.get('notes') };
+  try { await apiFetch(`/components/handovers/${form.dataset.handoverId}/receive`,{method:'POST',body:JSON.stringify(payload)}); closeModal(); await reloadComponents(); render(); toast(tr('success.title'),tr('components.receiptSaved')); }
+  catch(error){ toast(tr('error.title'),friendlyError(error),'warning'); }
+}
+
 async function saveRequest() {
   const form = document.querySelector('#request-form'); if (!form?.reportValidity()) return;
   const data = new FormData(form); const file = data.get('slip');
@@ -938,10 +1367,11 @@ async function saveRequest() {
 
 async function openPass() {
   try {
+    state.profile = await apiFetch('/donors/me/profile');
     const issued = await apiFetch('/donors/me/pass');
     openModal({
       title: tr('donor.passTitle'), subtitle: tr('donor.passSafety'),
-      body: `<div class="qr-pass"><div class="qr-brand">${icon('activity','icon-sm')} RaktFlow</div><div class="qr-frame"><canvas id="donor-pass-canvas"></canvas></div><div class="rotating-code">${esc(issued.rotating_code.slice(0,3))} ${esc(issued.rotating_code.slice(3))}</div><div class="secure-note">${icon('lock','icon-sm')} ${esc(tr('donor.qrOpaque'))}</div></div>`,
+      body: `<div class="qr-pass"><div class="qr-brand">${icon('activity','icon-sm')} RaktFlow</div><div class="qr-frame"><canvas id="donor-pass-canvas"></canvas></div><div class="rotating-code">${esc(issued.rotating_code.slice(0,3))} ${esc(issued.rotating_code.slice(3))}</div><div class="manual-pass-reference"><span>${esc(tr('donor.manualReference'))}</span><strong>${esc(state.profile?.reference_code || '')}</strong></div><div class="secure-note">${icon('lock','icon-sm')} ${esc(tr('donor.qrOpaque'))}</div></div>`,
       footer: `<button class="btn btn-secondary" data-action="close-modal">${esc(tr('common.close'))}</button>`,
       onOpen: () => {
         let stopped = false;
@@ -1006,6 +1436,34 @@ async function scanQrImage(file) {
     await processQrToken(result.getText());
   } catch (error) { console.warn(error); toast(tr('error.title'), tr('intake.noQrFound'), 'warning'); }
   finally { URL.revokeObjectURL(url); }
+}
+
+async function startUnitCamera() {
+  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) { toast(tr('error.title'),tr('intake.secureCamera'),'warning'); return; }
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false}); }
+  catch(error){ console.warn(error); toast(tr('error.title'),tr('intake.cameraPermission'),'warning'); return; }
+  const { BrowserMultiFormatReader } = await import('@zxing/browser');
+  openModal({
+    title:tr('components.scanExisting'), subtitle:tr('components.scanExistingHelp'),
+    body:`<video id="unit-video" class="qr-video" playsinline muted></video><p class="muted">${esc(tr('components.noCertifiedGeneration'))}</p>`,
+    footer:`<button class="btn btn-secondary" data-action="close-modal">${esc(tr('common.cancel'))}</button>`,
+    onOpen:() => {
+      const video=document.querySelector('#unit-video'); video.srcObject=stream; video.play().catch(()=>null);
+      const reader=new BrowserMultiFormatReader(); let controls; let done=false;
+      reader.decodeFromStream(stream,video,result=>{ if(result && !done){ done=true; controls?.stop(); stream.getTracks().forEach(track=>track.stop()); receiveComponentModal(result.getText()); } }).then(value=>{controls=value;}).catch(error=>{console.warn(error);toast(tr('error.title'),tr('components.noCodeFound'),'warning');});
+      return ()=>{done=true;controls?.stop();stream.getTracks().forEach(track=>track.stop());reader.reset?.();};
+    }
+  });
+}
+
+async function scanUnitImage(file) {
+  if (!file) return;
+  const { BrowserMultiFormatReader } = await import('@zxing/browser');
+  const url=URL.createObjectURL(file);
+  try { const result=await new BrowserMultiFormatReader().decodeFromImageUrl(url); receiveComponentModal(result.getText()); }
+  catch(error){console.warn(error);toast(tr('error.title'),tr('components.noCodeFound'),'warning');}
+  finally{URL.revokeObjectURL(url);}
 }
 
 async function manualCheckin() {
@@ -1081,8 +1539,18 @@ async function updateDriveStatus(id, nextStatus) {
   catch (error) { toast(tr('error.title'), friendlyError(error), 'warning'); }
 }
 
-async function verifyRequest(id) {
-  try { await apiFetch(`/requests/${id}/verify`, { method:'POST', body:JSON.stringify({ decision:'VERIFIED', reason_code:'CLINICAL_REVIEW_CONFIRMED', physician_registration_confirmed:true, component_confirmed:true }) }); state.hospitalRequests = await apiFetch('/requests/mine'); render(); toast(tr('success.title'), tr('success.requestVerified')); }
+async function verifyRequest() {
+  const form = document.querySelector('#request-review-form'); if (!form?.reportValidity()) return;
+  const data = new FormData(form);
+  const payload = {
+    decision:'VERIFIED', reason_code:'AUTHORIZED_DOCUMENT_REVIEW',
+    physician_registration_confirmed:data.has('physician_registration_confirmed'),
+    component_confirmed:data.has('component_confirmed'),
+    document_review_confirmed:data.has('document_review_confirmed'),
+    ocr_mismatch_resolved:data.has('ocr_mismatch_resolved'),
+    review_note:data.get('review_note')
+  };
+  try { await apiFetch(`/requests/${form.dataset.requestId}/verify`, { method:'POST', body:JSON.stringify(payload) }); closeModal(); state.hospitalRequests = await apiFetch('/requests/mine'); render(); toast(tr('success.title'), tr('success.requestVerified')); }
   catch (error) { toast(tr('error.title'), friendlyError(error), 'warning'); }
 }
 
@@ -1127,7 +1595,13 @@ async function sendCampaignEmail() {
 
 app.addEventListener('change', async event => {
   const language = event.target.closest('select[data-action="change-language"]');
-  if (language) { state.locale = await loadLocale(language.value); setLocale(state.locale); render(); return; }
+  if (language) {
+    state.locale = await loadLocale(language.value); setLocale(state.locale);
+    state.preferences = { ...(state.preferences || {}), language: state.locale };
+    render();
+    if (state.account) await savePreferences(true);
+    return;
+  }
   const drive = event.target.closest('select[data-action="select-drive"]');
   if (drive) { state.activeDriveId = drive.value; await loadActiveDriveData(); render(); return; }
 });
@@ -1143,17 +1617,34 @@ app.addEventListener('click', async event => {
   if (action === 'sign-out') { closeModal(); await signOutUser(); state.account=null; state.profile=null; state.screen='landing'; state.authError=''; render(); return; }
   if (action === 'toggle-mobile-menu') { state.mobileMenu=!state.mobileMenu; render(); return; }
   if (action === 'toggle-role-menu') { state.roleMenu=!state.roleMenu; render(); return; }
-  if (action === 'toggle-theme') { state.theme=state.theme==='dark'?'light':'dark'; storage.setItem('raktflow-theme',state.theme); document.documentElement.dataset.theme=state.theme; render(); return; }
+  if (action === 'toggle-theme') {
+    applyAppearance(state.theme === 'dark' ? 'LIGHT' : 'DARK'); render(); await savePreferences(true); return;
+  }
+  if (action === 'set-theme') { applyAppearance(target.dataset.theme === 'dark' ? 'DARK' : 'LIGHT'); render(); return; }
+  if (action === 'set-appearance') { applyAppearance(target.dataset.appearance); render(); return; }
+  if (action === 'save-preferences') return savePreferences();
+  if (action === 'download-personal-data') return downloadPersonalData();
+  if (action === 'privacy-request') return privacyRequestModal();
+  if (action === 'privacy-decision') return decidePrivacyRequest(target.dataset.requestId,target.dataset.status);
+  if (action === 'open-settings' || action === 'enable-local-alerts') { state.view='settings'; state.mobileMenu=false; render(); return; }
   if (action === 'open-account') return accountModal();
   if (action === 'open-profile') { closeModal(); return profileModal(); }
   if (action === 'open-screening') return screeningModal();
   if (action === 'open-pass') return openPass();
   if (action === 'go-drives') { state.view='drives'; render(); return; }
   if (action === 'refresh-donor' || action === 'refresh-hospital' || action === 'refresh-admin' || action === 'refresh-clinical' || action === 'refresh-proposals') return refreshCurrent();
+  if (action === 'refresh-eligibility') return refreshEligibility();
+  if (action === 'read-unit-notification') return readUnitNotification(target.dataset.notificationId);
+  if (action === 'respond-rare-alert') return respondRareAlert(target.dataset.alertId,target.dataset.response);
+  if (action === 'start-rare-dispatch') return updateRareDispatch(target.dataset.requestId);
+  if (action === 'expand-rare-dispatch') return updateRareDispatch(target.dataset.requestId,true);
   if (action === 'register-drive') return registerDrive(target.dataset.driveId);
   if (action === 'register-campaign') return registerDrive(state.campaignLanding.drive.id, state.campaignLanding.id);
   if (action === 'create-drive') return driveModal();
   if (action === 'create-proposal') return proposalModal();
+  if (action === 'manage-quotas') {
+    state.activeDriveId = target.dataset.driveId; await loadActiveDriveData(); return quotaModal();
+  }
   if (action === 'create-campaign') return campaignModal();
   if (action === 'edit-campaign') return campaignModal(campaignById(target.dataset.campaignId));
   if (action === 'select-campaign') { state.selectedCampaignId = target.dataset.campaignId; render(); return; }
@@ -1172,8 +1663,15 @@ app.addEventListener('click', async event => {
   if (action === 'upload-hospital-evidence') return hospitalEvidenceModal(target.dataset.hospitalId);
   if (action === 'review-hospital-documents') return hospitalDocumentsModal(target.dataset.hospitalId);
   if (action === 'inventory-event') return inventoryModal();
+  if (action === 'receive-component') return receiveComponentModal();
+  if (action === 'component-policies') return componentPolicyModal();
+  if (action === 'component-event') return componentEventModal(target.dataset.componentId);
+  if (action === 'component-history') return componentHistoryModal(target.dataset.componentId);
+  if (action === 'split-component') return splitComponentModal(target.dataset.componentId);
+  if (action === 'handover-component') return handoverModal(target.dataset.componentId);
+  if (action === 'receive-handover') return receiveHandoverModal(target.dataset.handoverId);
   if (action === 'new-request') return requestModal();
-  if (action === 'verify-request') return verifyRequest(target.dataset.requestId);
+  if (action === 'review-request') return requestReviewModal(target.dataset.requestId);
   if (action === 'review-screening') return reviewDecisionModal(target.dataset.screeningId,target.dataset.decision);
   if (action === 'invite-user') return inviteModal();
   if (action === 'resend-invitation') return resendInvitation(target.dataset.invitationId);
@@ -1204,15 +1702,25 @@ modalRoot.addEventListener('click', async event => {
   if (action === 'apply-hospital') { closeModal(); return hospitalApplicationModal(); }
   if (action === 'upload-hospital-evidence') return hospitalEvidenceModal(target.dataset.hospitalId);
   if (action === 'save-profile') return saveProfile();
+  if (action === 'save-privacy-request') return savePrivacyRequest();
   if (action === 'submit-screening') return saveScreening();
   if (action === 'save-drive') return saveDrive();
+  if (action === 'save-quotas') return saveQuotas();
   if (action === 'save-proposal') return saveProposal();
   if (action === 'save-campaign') return saveCampaign();
   if (action === 'submit-hospital') return submitHospital();
   if (action === 'save-hospital-evidence') return saveHospitalEvidence();
   if (action === 'download-hospital-document') return downloadHospitalDocument(target.dataset.hospitalId, target.dataset.documentId, target.dataset.filename);
   if (action === 'save-inventory') return saveInventory();
+  if (action === 'start-unit-camera') return startUnitCamera();
+  if (action === 'save-component-receipt') return saveComponentReceipt();
+  if (action === 'save-component-policy') return saveComponentPolicy();
+  if (action === 'save-component-event') return saveComponentEvent();
+  if (action === 'save-component-split') return saveComponentSplit();
+  if (action === 'save-handover') return saveHandover();
+  if (action === 'save-handover-receipt') return saveHandoverReceipt();
   if (action === 'save-request') return saveRequest();
+  if (action === 'save-request-review') return verifyRequest();
   if (action === 'send-invite') return sendInvite();
   if (action === 'save-roles') return saveRoles();
   if (action === 'save-review') return saveReview();
@@ -1225,17 +1733,22 @@ modalRoot.addEventListener('click', async event => {
       const form = document.querySelector(`#${formId}`);
       form.elements.latitude.value = position.coords.latitude.toFixed(6);
       form.elements.longitude.value = position.coords.longitude.toFixed(6);
+      if (formId === 'profile-form') {
+        const status = form.querySelector('#profile-location-status');
+        if (status) status.textContent = tr('profile.locationCapturedEphemeral');
+      }
     }, () => toast(tr('error.title'), tr('error.location'), 'warning'), { enableHighAccuracy:true, timeout:12000, maximumAge:300000 });
   }
 });
 
 document.addEventListener('change', event => {
   if (event.target.id === 'qr-image-input') scanQrImage(event.target.files?.[0]);
+  if (event.target.id === 'unit-barcode-image') scanUnitImage(event.target.files?.[0]);
 });
 
 window.addEventListener('keydown', event => { if (event.key === 'Escape') closeModal(); });
-window.addEventListener('online', () => toast(tr('success.title'),tr('success.online')));
-window.addEventListener('offline', () => toast(tr('error.title'),tr('error.offline'),'warning'));
+window.addEventListener('online', () => { state.online=true; render(); toast(tr('success.title'),tr('success.online')); });
+window.addEventListener('offline', () => { state.online=false; render(); toast(tr('error.title'),tr('error.offline'),'warning'); });
 
 if (import.meta.env.PROD) registerServiceWorker(() => toast(tr('success.title'),tr('success.updateReady')));
 

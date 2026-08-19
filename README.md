@@ -1,12 +1,12 @@
-# RaktFlow V3.2
+# RaktFlow V3.3
 
 **Verified blood-donation coordination and accountable blood logistics for India.**
 
-RaktFlow is a responsive PWA connecting five controlled workspaces: Donor, Organizer, Hospital/Blood Bank, Host Venue, and Super Admin. V3.2 preserves the preferred V3 interface while connecting visible workflows to Firebase Authentication, FastAPI, PostgreSQL/PostGIS, and Resend.
+RaktFlow is a responsive PWA connecting five controlled workspaces: Donor, Organizer, Hospital/Blood Bank, Host Venue, and Super Admin. V3.3 preserves the preferred V3 interface while extending the real Firebase/FastAPI/PostgreSQL system with privacy-minimized location matching, selected-facility clinical review, OCR-assisted requisitions, drive quotas, per-unit component traceability, cold-chain custody, rare matching and donor lifecycle updates.
 
 > RaktFlow is not a blood bank, emergency service, compatibility test, clinical decision system, or medical clearance. Qualified professionals remain responsible for donor eligibility, collection-time testing, blood safety, compatibility, release, transport, and transfusion. Free-tier hosting does not provide a mission-critical SLA.
 
-## V3.2 capabilities
+## V3.3 capabilities
 
 - Verified-email donor registration with Donor-only access by default
 - Invitation-only, multi-role staff authorization controlled by Super Admin
@@ -24,6 +24,15 @@ RaktFlow is a responsive PWA connecting five controlled workspaces: Donor, Organ
 - Persisted campaign slugs, posters, registration links/QR, sharing, hashed visits, registrations, and conversion analytics
 - Global Super Admin summaries, users, roles, invitations, hospitals, drives, campaigns, operations, and audit records
 - Responsive V3 dashboards, mobile bottom navigation, dark theme, keyboard focus, reduced-motion support, and Apple/system typography
+- First-class Settings with persisted appearance, language, workspace, notification, consent, privacy and data-rights controls
+- Approximate donor-area persistence while facilities and drive venues retain real public map coordinates
+- Donor-selected verified-facility pre-check review with minimum necessary queue visibility
+- OCR-assisted requisition review that never treats OCR as authenticity proof
+- Verified-need drive quotas and donor-visible capacity reasons
+- Per-unit/components, facility shelf-life policy, expiry dashboard, lifecycle events and cold-chain custody
+- Existing Code 128/ISBT 128 intake without claiming certified ISBT 128 generation
+- Staged opted-in rare matching and privacy-safe “Where did my blood go?” notifications
+- Aggregate Host Venue impact with no donor identity or clinical data
 
 Normal authenticated operation contains no demo mode or seeded display totals.
 
@@ -52,6 +61,7 @@ migrations/001_initial.sql
 migrations/002_identity_rbac_intake.sql
 migrations/003_operational_hospitals_inventory_proposals.sql
 migrations/004_integrated_workflows.sql
+migrations/005_trust_logistics_and_mobile.sql
 docs/                           architecture, security, deployment, changelogs
 render.yaml                     Render blueprint
 vercel.json                     Vercel build and security headers
@@ -98,7 +108,7 @@ pytest -q
 
 ## Database migrations
 
-New databases apply migrations 001, 002, 003, and 004 in order. Existing V3 production databases apply only `migrations/004_integrated_workflows.sql` for this release. Migration 004 is additive and is designed to preserve existing Neon records.
+New databases apply migrations 001 through 005 in order. Existing V3.2.1 production databases apply only `migrations/005_trust_logistics_and_mobile.sql` for this release. Migration 005 is additive, preserves operational records, backfills the unit/component foundation, and deliberately reduces stored donor-coordinate precision. Rehearse it on a copied Neon branch first.
 
 ## Security and privacy boundaries
 
@@ -113,19 +123,18 @@ New databases apply migrations 001, 002, 003, and 004 in order. Existing V3 prod
 
 ## Deployment
 
-For an existing deployment, start with [`APPLY_V3_2_UPDATE.md`](APPLY_V3_2_UPDATE.md). Do not recreate Firebase, Neon, Render, Vercel, or GitHub, and do not reset the production database.
+For an existing deployment, start with [`APPLY_V3_3_UPDATE.md`](APPLY_V3_3_UPDATE.md). Do not recreate Firebase, Neon, Render, Vercel, or GitHub, and do not reset the production database.
 
 ## Documentation
 
-- [V3.2 deployment reference](docs/DEPLOYMENT_V3_2.md)
-- [V3.2 changelog](docs/CHANGELOG_V3_2.md)
+- [V3.3 safe update sequence](APPLY_V3_3_UPDATE.md)
+- [V3.3 combined changelog](docs/CHANGELOG_V3_3.md)
+- [V3.3 PDF review decisions](docs/PDF_REVIEW_AND_V3_3_DECISIONS.md)
+- [V3.3 acceptance checklist](docs/V3_3_ACCEPTANCE_CHECKLIST.md)
+- [V3.2 production reference](docs/DEPLOYMENT_V3_2.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Security and clinical safety](docs/SECURITY.md)
 - [API contract](docs/API.md)
 - [Specification traceability](docs/SPEC_TRACEABILITY.md)
 
 Contact: `chemnaam@gmail.com` · `+91 9908840322`
-
-<!-- Trigger Vercel V3.2 production deployment: 2026-08-18 -->
-
-<!-- Vercel trigger after Git connection: 2026-08-18 -->

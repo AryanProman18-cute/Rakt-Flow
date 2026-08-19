@@ -1,7 +1,7 @@
 {
   "name": "raktflow-web",
   "private": true,
-  "version": "3.2.1",
+  "version": "3.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
@@ -13,6 +13,7 @@
   "dependencies": {
     "@zxing/browser": "^0.1.5",
     "firebase": "^12.17.1",
+    "leaflet": "^1.9.4",
     "qrcode": "^1.5.4"
   },
   "devDependencies": {
@@ -21,7 +22,6 @@
     "vite": "^7.1.1",
     "vite-plugin-pwa": "^1.0.3",
     "vitest": "^3.2.4",
-    "workbox-background-sync": "^7.3.0",
     "workbox-core": "^7.3.0",
     "workbox-expiration": "^7.3.0",
     "workbox-precaching": "^7.3.0",

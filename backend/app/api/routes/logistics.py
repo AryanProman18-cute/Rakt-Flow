@@ -19,7 +19,9 @@ from app.models.entities import (
     PlateletWindow,
     RequestStatus,
     RequestUrgency,
+    Screening,
     User,
+    UserPreference,
 )
 from app.schemas.api import (
     DispatchResult,
@@ -54,11 +56,19 @@ async def select_rare_candidates(
         DonorProfile.phenotype_codes.contains([request.phenotype_code])
         if request.phenotype_code else True
     )
+    latest_screening_id = (
+        select(Screening.id).where(Screening.donor_id == DonorProfile.id)
+        .order_by(Screening.created_at.desc()).limit(1).scalar_subquery()
+    )
     statement = (
         select(DonorProfile.id)
+        .join(UserPreference, UserPreference.user_id == DonorProfile.user_id)
+        .join(Screening, Screening.id == latest_screening_id)
         .where(
-            DonorProfile.is_on_call_standby.is_(True),
-            DonorProfile.eligibility_until > datetime.now(UTC),
+            UserPreference.rare_blood_opt_in.is_(True),
+            UserPreference.location_matching_opt_in.is_(True),
+            Screening.review_status == "APPROVED",
+            Screening.valid_until > datetime.now(UTC),
             DonorProfile.blood_type == request.blood_type,
             phenotype_filter,
             DonorProfile.location.is_not(None),
@@ -83,8 +93,24 @@ async def dispatch_tier(
     donor_ids = await select_rare_candidates(session, request, radius_km, cohort_size)
     deadline = datetime.now(UTC) + timedelta(minutes=10)
     for donor_id in donor_ids:
+        preference = await session.scalar(
+            select(UserPreference).join(DonorProfile, DonorProfile.user_id == UserPreference.user_id)
+            .where(DonorProfile.id == donor_id)
+        )
+        channels = ["IN_APP"]
+        if preference and preference.email_notifications:
+            channels.append("EMAIL_READY")
+        if preference and preference.sms_notifications:
+            channels.append("SMS_READY")
         session.add(DonorAlert(request_id=request.id, donor_id=donor_id, tier=tier, radius_km=radius_km, response_deadline=deadline))
-        session.add(NotificationOutbox(topic=f"donor:{donor_id}", event_type="RARE_STANDBY_PAGER", payload_json={"request_id": str(request.id), "tier": tier, "response_deadline": deadline.isoformat()}, available_at=datetime.now(UTC)))
+        session.add(NotificationOutbox(
+            topic=f"donor:{donor_id}", event_type="RARE_STANDBY_PAGER",
+            payload_json={
+                "request_id": str(request.id), "tier": tier,
+                "response_deadline": deadline.isoformat(), "channels": channels,
+                "privacy_notice": "No patient identity is included.",
+            }, available_at=datetime.now(UTC),
+        ))
     await append_audit_event(session, actor_uid=actor.uid, action="RARE_TIER_DISPATCHED", resource_type="blood_request", resource_id=request.id, metadata={"tier": tier, "radius_km": radius_km, "donors_contacted": len(donor_ids)})
     await session.commit()
     return DispatchResult(request_id=request.id, tier=tier, radius_km=radius_km, donors_contacted=len(donor_ids), response_deadline=deadline)
@@ -101,12 +127,83 @@ async def rare_dispatch(
     if request is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Request not found")
     await authorize_hospital_request(session, actor, hospital_user, request)
-    if request.status is not RequestStatus.VERIFIED or request.urgency is not RequestUrgency.RARE_STANDBY:
-        raise HTTPException(status.HTTP_409_CONFLICT, "A verified rare-standby request is required")
+    if (
+        request.status is not RequestStatus.VERIFIED
+        or request.urgency is not RequestUrgency.RARE_STANDBY
+        or request.expires_at <= datetime.now(UTC)
+    ):
+        raise HTTPException(status.HTTP_409_CONFLICT, "An active verified rare-standby request is required")
     existing = await session.scalar(select(DonorAlert.id).where(DonorAlert.request_id == request.id).limit(1))
     if existing:
         raise HTTPException(status.HTTP_409_CONFLICT, "Rare standby dispatch already started")
     return await dispatch_tier(session, actor, request, tier=1, radius_km=15, cohort_size=payload.cohort_size)
+
+
+@router.get("/rare/{request_id}/history")
+async def rare_dispatch_history(
+    request_id: UUID,
+    actor: Annotated[Actor, Depends(require_roles("ROLE_HOSPITAL"))],
+    hospital_user: Annotated[User, Depends(database_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> dict:
+    request = await session.scalar(select(BloodRequest).where(BloodRequest.id == request_id))
+    if request is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Request not found")
+    await authorize_hospital_request(session, actor, hospital_user, request)
+    rows = (
+        await session.execute(
+            select(DonorAlert, DonorProfile.reference_code)
+            .join(DonorProfile, DonorProfile.id == DonorAlert.donor_id)
+            .where(DonorAlert.request_id == request_id)
+            .order_by(DonorAlert.tier, DonorAlert.created_at)
+        )
+    ).all()
+    now = datetime.now(UTC)
+    alerts = [
+        {
+            "alert_id": str(alert.id), "donor_reference": donor_reference,
+            "tier": alert.tier, "radius_km": alert.radius_km,
+            "response": (
+                "EXPIRED"
+                if alert.response == "PENDING" and alert.response_deadline <= now
+                else alert.response
+            ),
+            "response_deadline": alert.response_deadline,
+            "responded_at": alert.responded_at,
+        }
+        for alert, donor_reference in rows
+    ]
+    accepted = sum(item["response"] == "ACCEPTED" for item in alerts)
+    tier_two_dispatched = any(item["tier"] == 2 for item in alerts)
+    last_deadline = max(
+        (alert.response_deadline for alert, _donor_reference in rows),
+        default=None,
+    )
+    return {
+        "request_id": str(request.id), "status": request.status.value,
+        "alerts": alerts,
+        "summary": {
+            "contacted": len(alerts), "pending": sum(item["response"] == "PENDING" for item in alerts),
+            "accepted": accepted, "declined": sum(item["response"] == "DECLINED" for item in alerts),
+            "expired": sum(item["response"] == "EXPIRED" for item in alerts),
+        },
+        "can_start": bool(
+            not alerts
+            and request.status is RequestStatus.VERIFIED
+            and request.urgency is RequestUrgency.RARE_STANDBY
+            and request.expires_at > now
+        ),
+        "can_expand": bool(
+            alerts
+            and not tier_two_dispatched
+            and accepted < 2
+            and last_deadline is not None
+            and last_deadline <= now
+            and request.status is RequestStatus.VERIFIED
+            and request.expires_at > now
+        ),
+        "privacy_notice": "Minimum operational donor references only; no names, contacts, health answers, or patient identity are included.",
+    }
 
 
 @router.post("/rare/{request_id}/expand", response_model=DispatchResult)
@@ -120,8 +217,12 @@ async def expand_rare_dispatch(
     if request is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Request not found")
     await authorize_hospital_request(session, actor, hospital_user, request)
-    if request.status is not RequestStatus.VERIFIED:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Verified active request required")
+    if (
+        request.status is not RequestStatus.VERIFIED
+        or request.urgency is not RequestUrgency.RARE_STANDBY
+        or request.expires_at <= datetime.now(UTC)
+    ):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Verified active rare-standby request required")
     accepted = await session.scalar(select(func.count()).select_from(DonorAlert).where(DonorAlert.request_id == request_id, DonorAlert.response == "ACCEPTED"))
     last_deadline = await session.scalar(select(func.max(DonorAlert.response_deadline)).where(DonorAlert.request_id == request_id))
     tier_two = await session.scalar(select(DonorAlert.id).where(DonorAlert.request_id == request_id, DonorAlert.tier == 2).limit(1))

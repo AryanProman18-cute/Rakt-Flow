@@ -6,6 +6,7 @@ from app.api.routes import (
     campaigns,
     checkins,
     clinical,
+    components,
     donors,
     drives,
     health,
@@ -13,6 +14,8 @@ from app.api.routes import (
     intake,
     logistics,
     notifications,
+    preferences,
+    privacy,
     public,
     requests,
 )
@@ -20,6 +23,8 @@ from app.api.routes import (
 api_router = APIRouter()
 api_router.include_router(health.router)
 api_router.include_router(public.router)
+api_router.include_router(preferences.router)
+api_router.include_router(privacy.router)
 api_router.include_router(accounts.router)
 api_router.include_router(admin.router)
 api_router.include_router(campaigns.router)
@@ -28,6 +33,7 @@ api_router.include_router(donors.router)
 api_router.include_router(drives.router)
 api_router.include_router(checkins.router)
 api_router.include_router(clinical.router)
+api_router.include_router(components.router)
 api_router.include_router(intake.router)
 api_router.include_router(requests.router)
 api_router.include_router(logistics.router)

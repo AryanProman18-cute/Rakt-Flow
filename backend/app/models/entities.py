@@ -11,6 +11,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     LargeBinary,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -204,6 +205,17 @@ class DriveRegistration(Base, UUIDPrimaryKey, Timestamped):
     checked_in_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class DriveBloodQuota(Base, UUIDPrimaryKey, Timestamped):
+    __tablename__ = "drive_blood_quotas"
+    __table_args__ = (UniqueConstraint("drive_id", "blood_type", name="uq_drive_blood_quota"),)
+    drive_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("drives.id", ondelete="CASCADE"))
+    blood_type: Mapped[str] = mapped_column(String(12), nullable=False)
+    max_registrations: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_request_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("blood_requests.id", ondelete="SET NULL"))
+    rationale: Mapped[str | None] = mapped_column(String(240))
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
 class BloodInventory(Base, UUIDPrimaryKey, Timestamped):
     __tablename__ = "blood_inventory"
     __table_args__ = (UniqueConstraint("hospital_id", "blood_type", "component_type", "phenotype_code", name="uq_inventory_group_component_phenotype"),)
@@ -253,6 +265,18 @@ class Screening(Base, UUIDPrimaryKey, Timestamped):
     reviewed_by_user_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("users.id"))
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     review_note: Mapped[str | None] = mapped_column(Text)
+    eligible_on: Mapped[date | None] = mapped_column(Date)
+    deferral_reason_codes: Mapped[list[str]] = mapped_column(JSONB, default=list)
+
+
+class ScreeningReviewAssignment(Base, UUIDPrimaryKey, Timestamped):
+    __tablename__ = "screening_review_assignments"
+    __table_args__ = (UniqueConstraint("screening_id", name="uq_screening_review_assignment"),)
+    screening_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("screenings.id", ondelete="CASCADE"), nullable=False)
+    hospital_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("hospital_profiles.id", ondelete="RESTRICT"), nullable=False)
+    selected_by_donor_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    purpose_consent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), default="ACTIVE", nullable=False)
 
 
 class CheckIn(Base, UUIDPrimaryKey, Timestamped):
@@ -291,6 +315,87 @@ class DonationRecord(Base, UUIDPrimaryKey, Timestamped):
     unit_reference: Mapped[str] = mapped_column(String(40), unique=True)
 
 
+class BloodUnit(Base, UUIDPrimaryKey, Timestamped):
+    __tablename__ = "blood_units"
+    donation_record_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("donation_records.id", ondelete="RESTRICT"), unique=True)
+    donor_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("donor_profiles.id", ondelete="RESTRICT"))
+    drive_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("drives.id", ondelete="RESTRICT"))
+    unit_reference: Mapped[str] = mapped_column(String(40), unique=True, nullable=False)
+    blood_type: Mapped[str] = mapped_column(String(12), nullable=False)
+    collected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), default="COLLECTED", nullable=False)
+
+
+class BloodComponent(Base, UUIDPrimaryKey, Timestamped):
+    __tablename__ = "blood_components"
+    blood_unit_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("blood_units.id", ondelete="RESTRICT"))
+    parent_component_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("blood_components.id", ondelete="RESTRICT"))
+    component_reference: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    isbt128_code: Mapped[str | None] = mapped_column(String(64), unique=True)
+    component_type: Mapped[str] = mapped_column(String(24), nullable=False)
+    blood_type: Mapped[str] = mapped_column(String(12), nullable=False)
+    volume_ml: Mapped[int | None] = mapped_column(Integer)
+    collected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    prepared_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    current_hospital_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("hospital_profiles.id", ondelete="SET NULL"))
+    status: Mapped[str] = mapped_column(String(24), default="COLLECTED", nullable=False)
+
+
+class ComponentShelfLifePolicy(Base, UUIDPrimaryKey, Timestamped):
+    __tablename__ = "component_shelf_life_policies"
+    __table_args__ = (UniqueConstraint("hospital_id", "component_type", name="uq_component_policy_facility_type"),)
+    hospital_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("hospital_profiles.id", ondelete="CASCADE"), nullable=False)
+    component_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    shelf_life_hours: Mapped[int] = mapped_column(Integer, nullable=False)
+    minimum_temperature_c: Mapped[float | None] = mapped_column(Numeric(5, 2))
+    maximum_temperature_c: Mapped[float | None] = mapped_column(Numeric(5, 2))
+    policy_reference: Mapped[str] = mapped_column(String(200), nullable=False)
+    verified_by_user_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
+class ComponentEvent(Base, UUIDPrimaryKey, Timestamped):
+    __tablename__ = "component_events"
+    component_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("blood_components.id", ondelete="RESTRICT"))
+    actor_user_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"))
+    hospital_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("hospital_profiles.id", ondelete="SET NULL"))
+    event_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    temperature_c: Mapped[float | None] = mapped_column(Numeric(5, 2))
+    event_reference: Mapped[str | None] = mapped_column(String(100))
+    metadata_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+
+
+class ColdChainHandover(Base, UUIDPrimaryKey, Timestamped):
+    __tablename__ = "cold_chain_handovers"
+    component_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("blood_components.id", ondelete="RESTRICT"))
+    from_hospital_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("hospital_profiles.id", ondelete="SET NULL"))
+    to_hospital_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("hospital_profiles.id", ondelete="SET NULL"))
+    handed_over_by_user_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"))
+    received_by_user_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"))
+    handed_over_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    dispatch_temperature_c: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False)
+    receipt_temperature_c: Mapped[float | None] = mapped_column(Numeric(5, 2))
+    container_reference: Mapped[str] = mapped_column(String(100), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), default="IN_TRANSIT", nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text)
+
+
+class DonorUnitNotification(Base, UUIDPrimaryKey, Timestamped):
+    __tablename__ = "donor_unit_notifications"
+    __table_args__ = (UniqueConstraint("donor_id", "component_id", "event_type", name="uq_donor_unit_event"),)
+    donor_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("donor_profiles.id", ondelete="CASCADE"))
+    blood_unit_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("blood_units.id", ondelete="CASCADE"))
+    component_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("blood_components.id", ondelete="SET NULL"))
+    event_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    safe_message: Mapped[str] = mapped_column(String(500), nullable=False)
+    delivery_status: Mapped[str] = mapped_column(String(32), default="IN_APP", nullable=False)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class RequisitionDocument(Base, UUIDPrimaryKey, Timestamped):
     __tablename__ = "requisition_documents"
     hospital_user_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
@@ -300,6 +405,11 @@ class RequisitionDocument(Base, UUIDPrimaryKey, Timestamped):
     encrypted_content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     sha256: Mapped[bytes] = mapped_column(LargeBinary(32), nullable=False)
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    ocr_status: Mapped[str] = mapped_column(String(32), default="NOT_PROCESSED", nullable=False)
+    ocr_text_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary)
+    ocr_fields: Mapped[dict] = mapped_column(JSONB, default=dict)
+    ocr_processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ocr_error_code: Mapped[str | None] = mapped_column(String(80))
 
 
 class BloodRequest(Base, UUIDPrimaryKey, Timestamped):
@@ -319,6 +429,10 @@ class BloodRequest(Base, UUIDPrimaryKey, Timestamped):
     verified_by_user_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("users.id"))
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ocr_status: Mapped[str] = mapped_column(String(32), default="NOT_PROCESSED", nullable=False)
+    ocr_fields: Mapped[dict] = mapped_column(JSONB, default=dict)
+    document_date: Mapped[date | None] = mapped_column(Date)
+    document_review_note: Mapped[str | None] = mapped_column(Text)
 
 
 class DonorAlert(Base, UUIDPrimaryKey, Timestamped):
@@ -350,6 +464,43 @@ class PlateletWindow(Base, UUIDPrimaryKey, Timestamped):
     starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String(20), default="OFFERED")
+
+
+class ConsentRecord(Base, UUIDPrimaryKey, Timestamped):
+    __tablename__ = "consent_records"
+    user_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    purpose_code: Mapped[str] = mapped_column(String(60), nullable=False)
+    granted: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    notice_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    withdrawn_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source: Mapped[str] = mapped_column(String(24), nullable=False)
+    metadata_json: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+
+
+class DataRightsRequest(Base, UUIDPrimaryKey, Timestamped):
+    __tablename__ = "data_rights_requests"
+    user_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    request_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), default="SUBMITTED", nullable=False)
+    details_encrypted: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolution_note: Mapped[str | None] = mapped_column(Text)
+
+
+class UserPreference(Base, UUIDPrimaryKey, Timestamped):
+    __tablename__ = "user_preferences"
+    __table_args__ = (UniqueConstraint("user_id", name="uq_user_preferences_user"),)
+    user_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    appearance: Mapped[str] = mapped_column(String(16), default="SYSTEM", nullable=False)
+    language: Mapped[str] = mapped_column(String(8), default="en", nullable=False)
+    in_app_notifications: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    email_notifications: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    sms_notifications: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    rare_blood_opt_in: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    location_matching_opt_in: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    donation_lifecycle_opt_in: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
 
 class NotificationOutbox(Base, UUIDPrimaryKey, Timestamped):

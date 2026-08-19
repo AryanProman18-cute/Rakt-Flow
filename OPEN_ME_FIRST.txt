@@ -1,16 +1,17 @@
-RaktFlow V3.2 portable source archive
+RaktFlow V3.3 combined editable source archive
 
 This is a standard ZIP with repository files directly at the archive root.
-The preferred V3 interface and the existing Firebase, Neon, Render, Vercel,
-and GitHub architecture are preserved.
+It combines the earlier V3.3 defect/logistics update with the accepted changes
+from the attached 12-page screenshot-analysis PDF while preserving the preferred
+V3 interface and the existing Firebase, Neon, Render, Vercel, and GitHub architecture.
 
-For the existing deployment, start with APPLY_V3_2_UPDATE.md.
-Apply only migrations/004_integrated_workflows.sql to the existing Neon database.
-Do not reset Neon and do not recreate deployed services.
+For the existing V3.2.1 deployment, start with APPLY_V3_3_UPDATE.md.
+Rehearse only migrations/005_trust_logistics_and_mobile.sql on a copied Neon
+branch before applying it once to production. Never rerun migrations 001–004,
+reset Neon, or recreate deployed services.
 
-For a new deployment, leave the Vercel Root Directory blank and read
-APPLY_V3_2_UPDATE.md plus docs/DEPLOYMENT_V3_2.md. New databases apply
-migrations 001, 002, 003, and 004 in order.
+Review docs/CHANGELOG_V3_3.md, docs/PDF_REVIEW_AND_V3_3_DECISIONS.md, and
+docs/V3_3_ACCEPTANCE_CHECKLIST.md before deployment.
 
-Never commit or share passwords, API keys, database credentials, or Firebase
-service-account JSON.
+Never commit or share passwords, API keys, database credentials, encryption
+keys, donor data, patient data, or Firebase service-account JSON.

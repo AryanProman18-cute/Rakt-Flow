@@ -245,6 +245,10 @@ button:disabled,
 }
 
 @media (max-width: 700px) {
+  .top-actions .language-picker,
+  .top-actions .role-switcher,
+  .top-actions > .icon-btn { display: none; }
+  .top-actions .account-button { display: grid; }
   .sidebar.mobile-open {
     position: fixed;
     inset: 0 auto 0 0;
