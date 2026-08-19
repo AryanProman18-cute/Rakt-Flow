@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
@@ -23,6 +24,7 @@ from app.models.entities import (
 )
 from app.schemas.api import RequestCreate, ResolveRequest, VerificationDecision
 from app.services.audit import append_audit_event
+from app.services.ocr import extract_requisition, match_requisition
 from app.services.privacy import PrivacyVault
 
 router = APIRouter(prefix="/requests", tags=["blood requests"])
@@ -42,6 +44,8 @@ def _request_view(request: BloodRequest, facility_name: str | None = None) -> di
         "units_needed": request.units_needed, "urgency": request.urgency.value,
         "status": request.status.value, "expires_at": request.expires_at,
         "verified_at": request.verified_at, "resolved_at": request.resolved_at,
+        "ocr_status": request.ocr_status, "ocr_fields": request.ocr_fields,
+        "document_date": request.document_date, "document_review_note": request.document_review_note,
     }
 
 
@@ -52,7 +56,7 @@ async def upload_requisition_document(
     hospital_user: Annotated[User, Depends(database_user)],
     settings: Annotated[Settings, Depends(get_settings)],
     session: Annotated[AsyncSession, Depends(get_session)],
-) -> dict[str, str]:
+) -> dict:
     await _verified_profile(session, hospital_user.id)
     allowed_types = {"application/pdf", "image/jpeg", "image/png"}
     if upload.content_type not in allowed_types:
@@ -63,6 +67,7 @@ async def upload_requisition_document(
     key = f"req-{uuid4()}"
     digest = hashlib.sha256(content).digest()
     vault = PrivacyVault(settings.pii_encryption_key, settings.phone_hash_pepper)
+    ocr = await asyncio.to_thread(extract_requisition, content, upload.content_type)
     document = RequisitionDocument(
         hospital_user_id=hospital_user.id,
         object_key=key,
@@ -71,6 +76,13 @@ async def upload_requisition_document(
         encrypted_content=vault.encrypt_bytes(content, context=f"requisition:{key}"),
         sha256=digest,
         size_bytes=len(content),
+        ocr_status=ocr.status,
+        ocr_text_encrypted=(
+            vault.encrypt_bytes(ocr.text.encode(), context=f"requisition-ocr:{key}") if ocr.text else None
+        ),
+        ocr_fields=ocr.fields,
+        ocr_processed_at=datetime.now(UTC),
+        ocr_error_code=ocr.error_code,
     )
     session.add(document)
     await session.flush()
@@ -80,7 +92,12 @@ async def upload_requisition_document(
         metadata={"content_type": upload.content_type, "size_bytes": len(content)},
     )
     await session.commit()
-    return {"object_key": key, "sha256": digest.hex()}
+    return {
+        "object_key": key,
+        "sha256": digest.hex(),
+        "ocr_status": document.ocr_status,
+        "ocr_fields": document.ocr_fields,
+    }
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -108,9 +125,25 @@ async def create_request(
     if profile.location is None and (payload.latitude is None or payload.longitude is None):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Facility coordinates are required for this demand")
     vault = PrivacyVault(settings.pii_encryption_key, settings.phone_hash_pepper)
+    patient_reference_hash = vault.keyed_hash(payload.patient_reference.strip())
+    duplicate = await session.scalar(select(BloodRequest.id).where(
+        BloodRequest.hospital_user_id == hospital_user.id,
+        BloodRequest.patient_reference_hash == patient_reference_hash,
+        BloodRequest.blood_type == payload.blood_type,
+        BloodRequest.status.in_([RequestStatus.PENDING, RequestStatus.VERIFIED]),
+        BloodRequest.expires_at > datetime.now(UTC),
+    ).limit(1))
+    if duplicate is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "An active request already exists for this facility reference and blood group")
+    ocr_status, document_date, ocr_reasons = match_requisition(
+        document.ocr_fields or {}, blood_type=payload.blood_type, facility_name=profile.facility_name
+    )
+    if document.ocr_status in {"PROCESSING_FAILED", "NO_TEXT_REVIEW_REQUIRED", "NOT_PROCESSED"}:
+        ocr_status = "MANUAL_REVIEW_REQUIRED"
+        ocr_reasons = [document.ocr_error_code or document.ocr_status]
     request = BloodRequest(
         hospital_user_id=hospital_user.id,
-        patient_reference_hash=vault.keyed_hash(payload.patient_reference.strip()),
+        patient_reference_hash=patient_reference_hash,
         blood_type=payload.blood_type,
         phenotype_code=payload.phenotype_code,
         component_type=payload.component_type,
@@ -125,12 +158,21 @@ async def create_request(
             ST_SetSRID(ST_MakePoint(payload.longitude, payload.latitude), 4326)
             if payload.latitude is not None and payload.longitude is not None else None
         ),
+        ocr_status=ocr_status,
+        ocr_fields=(document.ocr_fields or {}) | {"match_reasons": ocr_reasons},
+        document_date=document_date,
     )
     session.add(request)
     await session.flush()
-    await append_audit_event(session, actor_uid=actor.uid, action="REQUEST_CREATED", resource_type="blood_request", resource_id=request.id)
+    await append_audit_event(
+        session, actor_uid=actor.uid, action="REQUEST_CREATED", resource_type="blood_request",
+        resource_id=request.id, metadata={"ocr_status": request.ocr_status},
+    )
     await session.commit()
-    return {"request_id": str(request.id), "status": request.status.value}
+    return {
+        "request_id": str(request.id), "status": request.status.value,
+        "ocr_status": request.ocr_status, "ocr_fields": request.ocr_fields,
+    }
 
 
 @router.get("/mine")
@@ -166,9 +208,23 @@ async def verify_request(
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Only the requesting verified facility may review this demand")
     if request.status is not RequestStatus.PENDING:
         raise HTTPException(status.HTTP_409_CONFLICT, "Only pending requests may be reviewed")
-    if decision.decision == "VERIFIED" and not (decision.physician_registration_confirmed and decision.component_confirmed):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Required clinical checks are not confirmed")
+    if decision.decision == "VERIFIED" and not (
+        decision.physician_registration_confirmed
+        and decision.component_confirmed
+        and decision.document_review_confirmed
+    ):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Required document and clinical checks are not confirmed")
+    if (
+        decision.decision == "VERIFIED"
+        and request.ocr_status != "OCR_MATCHED_REVIEW_REQUIRED"
+        and not decision.ocr_mismatch_resolved
+    ):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "OCR mismatch or unreadable evidence requires an explicit authorized manual resolution",
+        )
     request.status = RequestStatus(decision.decision)
+    request.document_review_note = decision.review_note.strip() or decision.reason_code
     request.verified_by_user_id = reviewer.id
     request.verified_at = datetime.now(UTC)
     if request.status is RequestStatus.VERIFIED:

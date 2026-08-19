@@ -11,7 +11,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import Settings, get_settings
 from app.core.database import get_session
 from app.core.security import Actor, current_actor, require_roles
-from app.models.entities import DonorProfile, Invitation, Screening, User, UserRole
+from app.models.entities import (
+    ConsentRecord,
+    DonorProfile,
+    HospitalProfile,
+    Invitation,
+    Screening,
+    ScreeningReviewAssignment,
+    User,
+    UserPreference,
+    UserRole,
+)
 from app.schemas.accounts import (
     BootstrapResponse,
     DonorProfileUpsert,
@@ -151,6 +161,8 @@ async def get_donor_profile(
         latest_screening_outcome=screening.outcome if screening else None,
         screening_review_status=screening.review_status if screening else None,
         screening_valid_until=screening.valid_until if screening else None,
+        eligible_on=screening.eligible_on if screening else None,
+        deferral_reason_codes=screening.deferral_reason_codes if screening else [],
     )
 
 
@@ -163,8 +175,17 @@ async def upsert_donor_profile(
 ) -> DonorProfileView:
     if not payload.consent_to_process:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Data-processing consent is required")
-    if (payload.latitude is None) != (payload.longitude is None):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Both latitude and longitude are required")
+    donor_age = age_on(payload.date_of_birth)
+    if donor_age < settings.screening_min_age:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"Donor registration is limited to adults aged {settings.screening_min_age} or older",
+        )
+    if payload.latitude is None or payload.longitude is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Choose a location so the server can store an approximate nearby-matching area",
+        )
     user = await session.scalar(select(User).where(User.firebase_uid == actor.uid))
     if user is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Complete account bootstrap first")
@@ -185,11 +206,62 @@ async def upsert_donor_profile(
     profile.phone_hash = vault.keyed_hash(normalized_phone)
     profile.phone_encrypted = vault.encrypt_text(normalized_phone, context=f"donor-phone:{user.id}")
     profile.city = payload.city.strip()
+    approximate_latitude = None
+    approximate_longitude = None
     if payload.latitude is not None and payload.longitude is not None:
-        profile.location = ST_SetSRID(ST_MakePoint(payload.longitude, payload.latitude), 4326)
+        # Exact browser coordinates are used only in this request. Persist a broad
+        # grid point suitable for nearby results, not a street-level donor location.
+        grid_degrees = 0.02
+        approximate_latitude = round(payload.latitude / grid_degrees) * grid_degrees
+        approximate_longitude = round(payload.longitude / grid_degrees) * grid_degrees
+        profile.location = ST_SetSRID(
+            ST_MakePoint(approximate_longitude, approximate_latitude), 4326
+        )
     profile.blood_type = payload.blood_type
     profile.profile_status = "COMPLETE"
     profile.consent_at = profile.consent_at or datetime.now(UTC)
+    existing_core_consent = await session.scalar(
+        select(ConsentRecord.id).where(
+            ConsentRecord.user_id == user.id,
+            ConsentRecord.purpose_code == "DONOR_REGISTRATION_AND_SAFETY",
+            ConsentRecord.granted.is_(True),
+        ).limit(1)
+    )
+    if existing_core_consent is None:
+        session.add(ConsentRecord(
+            user_id=user.id,
+            purpose_code="DONOR_REGISTRATION_AND_SAFETY",
+            granted=True,
+            notice_version="DPDP-PLAIN-2026-01",
+            captured_at=datetime.now(UTC),
+            source="PROFILE",
+            metadata_json={"required": True},
+        ))
+    if approximate_latitude is not None:
+        existing_location_consent = await session.scalar(
+            select(ConsentRecord.id).where(
+                ConsentRecord.user_id == user.id,
+                ConsentRecord.purpose_code == "OPTIONAL_NEARBY_LOCATION_MATCHING",
+                ConsentRecord.granted.is_(True),
+            ).limit(1)
+        )
+        if existing_location_consent is None:
+            session.add(ConsentRecord(
+                user_id=user.id,
+                purpose_code="OPTIONAL_NEARBY_LOCATION_MATCHING",
+                granted=True,
+                notice_version="DPDP-PLAIN-2026-01",
+                captured_at=datetime.now(UTC),
+                source="PROFILE",
+                metadata_json={"precision": "APPROXIMATE_2KM_GRID"},
+            ))
+        preference = await session.scalar(
+            select(UserPreference).where(UserPreference.user_id == user.id)
+        )
+        if preference is None:
+            preference = UserPreference(user_id=user.id)
+            session.add(preference)
+        preference.location_matching_opt_in = True
     await append_audit_event(session, actor_uid=actor.uid, action="DONOR_PROFILE_UPDATED", resource_type="donor_profile", resource_id=profile.id)
     await session.commit()
     return DonorProfileView(
@@ -200,15 +272,52 @@ async def upsert_donor_profile(
         phone=normalized_phone,
         phone_masked=mask_phone(normalized_phone),
         city=profile.city,
-        latitude=payload.latitude,
-        longitude=payload.longitude,
+        latitude=approximate_latitude,
+        longitude=approximate_longitude,
         blood_type=profile.blood_type,
         profile_status=profile.profile_status,
         identity_verified=profile.identity_verified_at is not None,
         latest_screening_outcome=None,
         screening_review_status=None,
         screening_valid_until=None,
+        eligible_on=None,
+        deferral_reason_codes=[],
     )
+
+
+def calculated_deferral_window(
+    payload: ScreeningSubmission, settings: Settings
+) -> tuple[date | None, list[str]]:
+    candidates: list[date] = []
+    reasons: list[str] = []
+
+    def add(condition: bool | None, event_date: date | None, days: int, code: str) -> None:
+        if not condition:
+            return
+        reasons.append(code)
+        if event_date:
+            candidates.append(event_date + timedelta(days=days))
+        else:
+            reasons.append(f"{code}_DATE_REQUIRED")
+
+    add(payload.fever_infection_or_antibiotics, payload.antibiotics_completed_date,
+        settings.screening_antibiotic_review_days, "ANTIBIOTIC_OR_INFECTION_REVIEW")
+    add(payload.surgery_transfusion_or_hospitalization_last_12_months,
+        payload.surgery_or_transfusion_date, settings.screening_surgery_review_days,
+        "SURGERY_OR_TRANSFUSION_REVIEW")
+    add(payload.tattoo_or_piercing_last_12_months, payload.tattoo_or_piercing_date,
+        settings.screening_tattoo_review_days, "TATTOO_OR_PIERCING_REVIEW")
+    add(payload.malaria_risk_travel_or_residence, payload.malaria_risk_return_date,
+        settings.screening_malaria_review_days, "MALARIA_TRAVEL_REVIEW")
+    add(payload.pregnancy_breastfeeding_or_recent_delivery,
+        payload.delivery_or_pregnancy_end_date, settings.screening_delivery_review_days,
+        "PREGNANCY_OR_DELIVERY_REVIEW")
+    if payload.last_donation_date:
+        reasons.append("DONATION_INTERVAL_REVIEW")
+        candidates.append(payload.last_donation_date + timedelta(
+            days=settings.screening_whole_blood_interval_days
+        ))
+    return max(candidates, default=None), sorted(set(reasons))
 
 
 @router.post("/donors/me/screenings", response_model=ScreeningResult, status_code=status.HTTP_201_CREATED)
@@ -218,8 +327,21 @@ async def submit_screening(
     session: Annotated[AsyncSession, Depends(get_session)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> ScreeningResult:
-    if not (payload.answers_are_truthful and payload.consent_to_clinical_review):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Attestation and clinical-review consent are required")
+    if not (
+        payload.answers_are_truthful
+        and payload.consent_to_clinical_review
+        and payload.consent_to_selected_facility_review
+    ):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Attestation and explicit selected-facility review consent are required",
+        )
+    review_hospital = await session.get(HospitalProfile, payload.review_hospital_id)
+    if review_hospital is None or review_hospital.status != "VERIFIED":
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Choose a verified hospital or blood bank for confidential review",
+        )
     user = await session.scalar(select(User).where(User.firebase_uid == actor.uid))
     profile = await session.scalar(select(DonorProfile).where(DonorProfile.user_id == user.id)) if user else None
     if profile is None or profile.date_of_birth is None:
@@ -227,7 +349,12 @@ async def submit_screening(
 
     flags: list[str] = []
     donor_age = age_on(profile.date_of_birth)
-    if not settings.screening_min_age <= donor_age <= settings.screening_max_age:
+    if donor_age < settings.screening_min_age:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"Online donor screening is restricted to adults aged {settings.screening_min_age} or older",
+        )
+    if donor_age > settings.screening_max_age:
         flags.append("AGE_REQUIRES_REVIEW")
     if payload.weight_kg < settings.screening_min_weight_kg:
         flags.append("WEIGHT_BELOW_CONFIGURED_THRESHOLD")
@@ -248,7 +375,16 @@ async def submit_screening(
     if payload.last_donation_date and datetime.now(UTC).date() - payload.last_donation_date < timedelta(days=settings.screening_whole_blood_interval_days):
         flags.append("RECENT_DONATION_REQUIRES_REVIEW")
 
-    deferral_flags = {"AGE_REQUIRES_REVIEW", "WEIGHT_BELOW_CONFIGURED_THRESHOLD", "CURRENT_HEALTH_REQUIRES_REVIEW"}
+    eligible_on, deferral_reason_codes = calculated_deferral_window(payload, settings)
+    if eligible_on and eligible_on > datetime.now(UTC).date():
+        flags.append("TEMPORARY_DEFERRAL_COUNTDOWN_ACTIVE")
+    if any(code.endswith("_DATE_REQUIRED") for code in deferral_reason_codes):
+        flags.append("DEFERRAL_DATE_REQUIRES_CLINICAL_REVIEW")
+
+    deferral_flags = {
+        "AGE_REQUIRES_REVIEW", "WEIGHT_BELOW_CONFIGURED_THRESHOLD",
+        "CURRENT_HEALTH_REQUIRES_REVIEW", "TEMPORARY_DEFERRAL_COUNTDOWN_ACTIVE",
+    }
     if flags and deferral_flags.intersection(flags):
         outcome = "TEMPORARY_DEFERRAL_SUGGESTED"
     elif flags:
@@ -266,14 +402,46 @@ async def submit_screening(
         flags=flags,
         attested_at=now,
         valid_until=valid_until,
+        eligible_on=eligible_on,
+        deferral_reason_codes=deferral_reason_codes,
     )
     session.add(screening)
     await session.flush()
-    await append_audit_event(session, actor_uid=actor.uid, action="SCREENING_SELF_ATTESTED", resource_type="screening", resource_id=screening.id, metadata={"outcome": outcome, "flag_count": len(flags)})
+    session.add(ScreeningReviewAssignment(
+        screening_id=screening.id,
+        hospital_id=review_hospital.id,
+        selected_by_donor_at=now,
+        purpose_consent_at=now,
+        status="ACTIVE",
+    ))
+    session.add(ConsentRecord(
+        user_id=user.id,
+        purpose_code="SELECTED_FACILITY_PRECHECK_REVIEW",
+        granted=True,
+        notice_version="DPDP-PLAIN-2026-01",
+        captured_at=now,
+        source="SCREENING",
+        metadata_json={
+            "screening_id": str(screening.id),
+            "hospital_id": str(review_hospital.id),
+        },
+    ))
+    await append_audit_event(
+        session, actor_uid=actor.uid, action="SCREENING_SELF_ATTESTED",
+        resource_type="screening", resource_id=screening.id,
+        metadata={
+            "outcome": outcome, "flag_count": len(flags),
+            "review_hospital_id": str(review_hospital.id),
+            "purpose_consent": "DONOR_SELECTED_CONFIDENTIAL_PRECHECK_REVIEW",
+        },
+    )
     await session.commit()
     message = {
         "PROCEED_TO_CLINICAL": "Pre-check complete. Eligibility must still be confirmed by qualified staff on site.",
         "CLINICAL_REVIEW": "Your answers need a confidential review by qualified staff before donation.",
         "TEMPORARY_DEFERRAL_SUGGESTED": "Please do not proceed until qualified staff reviews the highlighted eligibility factors.",
     }[outcome]
-    return ScreeningResult(screening_id=screening.id, outcome=outcome, flags=flags, valid_until=valid_until, message=message)
+    return ScreeningResult(
+        screening_id=screening.id, outcome=outcome, flags=flags, valid_until=valid_until,
+        eligible_on=eligible_on, deferral_reason_codes=deferral_reason_codes, message=message,
+    )

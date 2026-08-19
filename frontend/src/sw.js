@@ -1,9 +1,8 @@
 /// <reference lib="webworker" />
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
 import { registerRoute } from 'workbox-routing';
-import { NetworkFirst, NetworkOnly, CacheFirst, StaleWhileRevalidate } from 'workbox-strategies';
+import { NetworkFirst, CacheFirst, StaleWhileRevalidate } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
-import { BackgroundSyncPlugin } from 'workbox-background-sync';
 
 self.skipWaiting();
 self.clientsClaim();
@@ -17,35 +16,12 @@ registerRoute(({ request }) => request.destination === 'image', new CacheFirst({
   plugins: [new ExpirationPlugin({ maxEntries: 30, maxAgeSeconds: 30 * 24 * 60 * 60 })]
 }));
 
-const checkinSync = new BackgroundSyncPlugin('sync-donor-checkins', {
-  maxRetentionTime: 24 * 60,
-  onSync: async ({ queue }) => {
-    let entry;
-    const batch = [];
-    while ((entry = await queue.shiftRequest())) {
-      try {
-        const cloned = entry.request.clone();
-        batch.push(await cloned.json());
-      } catch {
-        await queue.unshiftRequest(entry);
-        throw new Error('Could not read queued check-in');
-      }
-    }
-    if (!batch.length) return;
-    const response = await fetch('/api/v1/checkins/batch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Offline-Replay': '1' },
-      body: JSON.stringify({ items: batch })
-    });
-    if (!response.ok) throw new Error(`Batch replay failed: ${response.status}`);
-  }
-});
-
-registerRoute(
-  ({ url, request }) => url.pathname === '/api/v1/checkins' && request.method === 'POST',
-  new NetworkOnly({ plugins: [checkinSync] }),
-  'POST'
-);
+// Clinical check-in mutations are deliberately not queued offline. The current
+// donor pass uses a server-held symmetric signing secret and must be verified
+// online to enforce expiry, latest-screening selection, ownership and replay
+// controls. A future offline mode requires asymmetric tokens and encrypted,
+// revocable device provisioning; silently accepting unverified queued scans
+// would create a blood-safety and privacy risk.
 
 self.addEventListener('push', (event) => {
   const payload = event.data?.json?.() || { title: 'RaktFlow update', body: event.data?.text?.() || 'A verified logistics update is available.' };

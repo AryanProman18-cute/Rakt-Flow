@@ -8,10 +8,33 @@ const API_BASE = RAW_API_BASE.replace(/\/api\/v1\/health$/i, '');
 export const isApiConfigured = () => Boolean(API_BASE);
 export const configuredApiOrigin = () => API_BASE;
 
+function detailMessage(detail) {
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    return detail.map(item => {
+      const field = Array.isArray(item?.loc) ? item.loc.filter(part => part !== 'body').join(' → ') : '';
+      return `${field ? `${field}: ` : ''}${item?.msg || 'Invalid value'}`;
+    }).join(' · ');
+  }
+  return '';
+}
+
+export class ApiError extends Error {
+  constructor(message, status, payload = {}) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.payload = payload;
+  }
+}
+
 async function parseResponse(response) {
   if (response.status === 204) return null;
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.detail || `RaktFlow API returned ${response.status}`);
+  if (!response.ok) {
+    const message = detailMessage(payload.detail) || `RaktFlow API returned ${response.status}`;
+    throw new ApiError(message, response.status, payload);
+  }
   return payload;
 }
 

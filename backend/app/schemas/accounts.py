@@ -2,7 +2,7 @@ from datetime import date, datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 ROLE_VALUES = {
     "ROLE_DONOR",
@@ -75,6 +75,8 @@ class DonorProfileView(BaseModel):
     latest_screening_outcome: str | None
     screening_review_status: str | None = None
     screening_valid_until: datetime | None = None
+    eligible_on: date | None = None
+    deferral_reason_codes: list[str] = Field(default_factory=list)
 
 
 class ScreeningSubmission(BaseModel):
@@ -89,8 +91,15 @@ class ScreeningSubmission(BaseModel):
     malaria_risk_travel_or_residence: bool
     pregnancy_breastfeeding_or_recent_delivery: bool | None = None
     last_donation_date: date | None = None
+    antibiotics_completed_date: date | None = None
+    surgery_or_transfusion_date: date | None = None
+    tattoo_or_piercing_date: date | None = None
+    malaria_risk_return_date: date | None = None
+    delivery_or_pregnancy_end_date: date | None = None
+    review_hospital_id: UUID
     answers_are_truthful: bool
     consent_to_clinical_review: bool
+    consent_to_selected_facility_review: bool
 
 
 class ScreeningResult(BaseModel):
@@ -99,6 +108,8 @@ class ScreeningResult(BaseModel):
     flags: list[str]
     valid_until: datetime
     review_status: Literal["PENDING", "APPROVED", "DECLINED"] = "PENDING"
+    eligible_on: date | None = None
+    deferral_reason_codes: list[str] = Field(default_factory=list)
     message: str
 
 
@@ -145,6 +156,14 @@ class DriveCreate(BaseModel):
     target_units: int = Field(ge=1, le=1000)
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
+
+    @model_validator(mode="after")
+    def validate_drive(self):
+        if self.ends_at <= self.starts_at:
+            raise ValueError("Drive end time must be after start time")
+        if (self.latitude is None) != (self.longitude is None):
+            raise ValueError("Both latitude and longitude are required when either coordinate is provided")
+        return self
 
 
 class DriveStatusUpdate(BaseModel):

@@ -13,6 +13,8 @@ from app.core.config import Settings, get_settings
 from app.core.database import get_session
 from app.core.security import Actor, require_roles
 from app.models.entities import (
+    BloodComponent,
+    BloodUnit,
     CheckIn,
     ClinicalAssessment,
     DonationRecord,
@@ -31,6 +33,7 @@ from app.schemas.accounts import (
 )
 from app.services.audit import append_audit_event
 from app.services.clinical_safety import current_screening_is_approved
+from app.services.components import default_expiry
 from app.services.privacy import PrivacyVault
 from app.services.tokens import DonorPassIssuer
 
@@ -259,6 +262,22 @@ async def record_donation(
     profile = await session.scalar(select(DonorProfile).where(DonorProfile.id == checkin.donor_id).with_for_update())
     if profile:
         profile.last_donation_date = payload.collected_at.date()
+    unit = BloodUnit(
+        donation_record_id=record.id, donor_id=record.donor_id, drive_id=record.drive_id,
+        unit_reference=record.unit_reference, blood_type=record.blood_type_at_collection,
+        collected_at=record.collected_at, status="COLLECTED",
+    )
+    session.add(unit)
+    await session.flush()
+    session.add(BloodComponent(
+        blood_unit_id=unit.id, parent_component_id=None,
+        component_reference=record.unit_reference, isbt128_code=None,
+        component_type=record.component_type, blood_type=record.blood_type_at_collection,
+        volume_ml=record.volume_ml, collected_at=record.collected_at,
+        prepared_at=record.collected_at,
+        expires_at=default_expiry(record.component_type, record.collected_at),
+        current_hospital_id=None, status="COLLECTED",
+    ))
     await append_audit_event(session, actor_uid=actor.uid, action="DONATION_RECORDED", resource_type="donation_record", resource_id=record.id, metadata={"drive_id": str(checkin.drive_id), "component": payload.component_type})
     await session.commit()
     return {"donation_id": str(record.id), "unit_reference": record.unit_reference, "duplicate": False}

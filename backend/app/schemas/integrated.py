@@ -51,6 +51,18 @@ class CampaignShare(BaseModel):
     personal_message: str = Field(default="", max_length=500)
 
 
+class DriveQuotaItem(BaseModel):
+    blood_type: str = Field(pattern=r"^(A|B|AB|O)[+-]$|^BOMBAY$")
+    max_registrations: int = Field(ge=0, le=1000)
+    source_request_id: UUID | None = None
+    rationale: str = Field(default="", max_length=240)
+    active: bool = True
+
+
+class DriveQuotaUpdate(BaseModel):
+    quotas: list[DriveQuotaItem] = Field(min_length=1, max_length=9)
+
+
 class ScreeningReview(BaseModel):
     decision: Literal["APPROVED", "DECLINED"]
     note: str = Field(default="", max_length=1000)

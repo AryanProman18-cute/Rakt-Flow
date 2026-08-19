@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     bootstrap_admin_email: str = ""
     public_app_url: str = "http://localhost:5173"
     resend_api_key: str = ""
-    email_from: str = "RaktFlow <noreply@example.invalid>"
+    email_from: str = ""
     admin_notification_email: str = "chemnaam@gmail.com"
     contact_email: str = "chemnaam@gmail.com"
     contact_phone: str = "9908840322"
@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     screening_max_age: int = 65
     screening_min_weight_kg: float = 45.0
     screening_whole_blood_interval_days: int = 90
+    screening_antibiotic_review_days: int = 14
+    screening_tattoo_review_days: int = 180
+    screening_surgery_review_days: int = 180
+    screening_malaria_review_days: int = 90
+    screening_delivery_review_days: int = 365
+    data_rights_response_days: int = 30
 
     @field_validator("cors_origins", mode="before")
     @classmethod
@@ -64,6 +70,15 @@ class Settings(BaseSettings):
                 raise RuntimeError("A strong PHONE_HASH_PEPPER is required in production")
             if not self.pii_encryption_key:
                 raise RuntimeError("PII_ENCRYPTION_KEY is required in production")
+            origins = [str(origin).strip().rstrip("/") for origin in self.cors_origins]
+            if "*" in origins:
+                raise RuntimeError("Wildcard CORS origins are forbidden in production")
+            if not str(self.public_app_url).startswith("https://"):
+                raise RuntimeError("PUBLIC_APP_URL must use HTTPS in production")
+            if any(not origin.startswith("https://") for origin in origins):
+                raise RuntimeError("Every production CORS origin must use HTTPS")
+            if self.resend_api_key and not self.email_from:
+                raise RuntimeError("EMAIL_FROM is required when RESEND_API_KEY is configured")
 
 
 @lru_cache

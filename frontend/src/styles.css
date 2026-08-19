@@ -666,9 +666,15 @@ svg { display: block; }
   .form-grid { grid-template-columns: 1fr; }
   .field.full { grid-column: 1; }
   .option-grid { grid-template-columns: 1fr; }
-  .modal-backdrop { padding: 0; align-items: end; }
-  .modal { width: 100%; max-height: 92vh; border-radius: 22px 22px 0 0; }
+  .modal-backdrop { padding: max(8px, env(safe-area-inset-top)) 0 0; align-items: end; overflow: hidden; }
+  .modal { width: 100%; max-height: calc(100dvh - max(8px, env(safe-area-inset-top))); border-radius: 22px 22px 0 0; overscroll-behavior: contain; }
   .modal-wide { width: 100%; }
+  .modal-head { align-items: flex-start; padding: 15px 16px; }
+  .modal-head > div { min-width: 0; flex: 1; }
+  .modal-head h2, .modal-head p { overflow-wrap: anywhere; }
+  .modal-close { flex: 0 0 auto; margin-left: auto; position: sticky; right: 0; top: 0; }
+  .modal-body { padding: 17px 16px calc(20px + env(safe-area-inset-bottom)); }
+  .modal-foot { padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); }
   .mobile-bottom-nav { position: fixed; z-index: 70; left: 0; right: 0; bottom: 0; height: calc(66px + env(safe-area-inset-bottom)); display: flex; justify-content: space-around; padding: 7px 5px env(safe-area-inset-bottom); border-top: 1px solid var(--border); background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(14px); }
   .bottom-nav-item { min-width: 55px; border: 0; border-radius: 10px; display: grid; place-items: center; gap: 1px; color: var(--muted); background: transparent; font-size: 9px; font-weight: 700; cursor: pointer; }
   .bottom-nav-item .icon { width: 20px; height: 20px; }

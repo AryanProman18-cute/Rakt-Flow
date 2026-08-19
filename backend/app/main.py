@@ -22,7 +22,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="RaktFlow API",
-    version="0.1.0",
+    version="3.3.0",
     description="Verified blood donation and emergency logistics orchestration API.",
     default_response_class=ORJSONResponse,
     lifespan=lifespan,
@@ -44,7 +44,7 @@ if allowed_origins:
         allow_origins=sorted(allowed_origins),
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-Offline-Replay"],
+        allow_headers=["Authorization", "Content-Type", "Idempotency-Key"],
         max_age=600,
     )
 

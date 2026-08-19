@@ -12,3 +12,6 @@ orjson==3.11.2
 structlog==25.4.0
 email-validator==2.2.0
 cryptography==45.0.6
+Pillow==11.3.0
+pytesseract==0.3.13
+pypdf==5.9.0
