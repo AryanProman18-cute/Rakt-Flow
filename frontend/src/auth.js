@@ -10,6 +10,7 @@ import {
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithEmailLink,
+  signInWithPopup,
   signInWithRedirect,
   signOut
 } from 'firebase/auth';
@@ -124,13 +125,37 @@ function googleProvider() {
 }
 
 /**
- * Redirect mode avoids browser popup blockers. In production the configured
- * authDomain is the Vercel application domain and Vercel transparently proxies
- * /__/auth/* to Firebase Hosting, keeping Firebase's temporary auth state
- * first-party in Safari, Firefox, Brave, and other partitioning browsers.
+ * Popup-first Google sign-in.
+ *
+ * `signInWithRedirect` fails in storage-partitioned browsers (in-app webviews
+ * such as WhatsApp/Instagram, Brave, some Safari/Firefox privacy modes) with
+ * "Unable to process request due to missing initial state" because the auth
+ * handler cannot read the pending state across the partition boundary.
+ *
+ * Popup mode communicates back over postMessage and works in those contexts,
+ * so we try it first and only fall back to redirect when popups are blocked
+ * or not available. The Vercel /__/auth/* proxy stays in place, which keeps
+ * the redirect path first-party for the browsers that do use it.
  */
-export function signInWithGoogle() {
-  return signInWithRedirect(getRaktFlowAuth(), googleProvider());
+export async function signInWithGoogle() {
+  const firebaseAuth = getRaktFlowAuth();
+  const provider = googleProvider();
+  try {
+    await signInWithPopup(firebaseAuth, provider);
+    return { method: 'popup' };
+  } catch (error) {
+    const code = error?.code;
+    const popupUnavailable = [
+      'auth/popup-blocked',
+      'auth/operation-not-allowed',
+      'auth/unauthorized-domain',
+      'auth/cancelled-popup-request',
+      'auth/web-storage-unsupported'
+    ].includes(code);
+    if (!popupUnavailable) throw error;
+    await signInWithRedirect(firebaseAuth, provider);
+    return { method: 'redirect' };
+  }
 }
 
 export async function completeGoogleRedirect() {
@@ -151,6 +176,11 @@ export function signOutUser() {
 }
 
 export function authErrorMessage(error) {
+  // Storage-partitioned browsers abort the redirect hand-off with "missing
+  // initial state"; surface a practical next step instead of the raw message.
+  if (/initial state/i.test(String(error?.message || ''))) {
+    return 'This browser blocked the secure Google sign-in hand-off (common in private or in-app browsers). Open raktflow in Chrome/Safari, or use email & password above.';
+  }
   const messages = {
     'auth/account-exists-with-different-credential': 'An account already exists for this email. Use its original sign-in method or reset the password.',
     'auth/email-already-in-use': 'An account already exists for this email. Sign in or use Forgot password.',
@@ -162,6 +192,9 @@ export function authErrorMessage(error) {
     'auth/operation-not-allowed': 'Email and password sign-in is not enabled in Firebase yet.',
     'auth/popup-blocked': 'The browser blocked the Google sign-in window. Allow pop-ups and try again.',
     'auth/popup-closed-by-user': 'Google sign-in was cancelled before it finished.',
+    'auth/redirect-cancelled-by-user': 'Google sign-in was cancelled or blocked by this browser. Try again, open the site in Chrome/Safari, or use email & password.',
+    'auth/unauthorized-domain': 'This website address is not authorised for Google sign-in in Firebase yet. Contact the administrator.',
+    'auth/web-storage-unsupported': 'This browser blocks the secure storage Google sign-in needs. Try Chrome/Safari, or use email & password.',
     'auth/too-many-requests': 'Too many attempts were made. Wait a little before trying again.',
     'auth/user-disabled': 'This Firebase account has been disabled.',
     'auth/user-not-found': 'The email or password is incorrect.',

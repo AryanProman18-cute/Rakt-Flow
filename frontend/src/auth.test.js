@@ -25,4 +25,10 @@ describe('authErrorMessage', () => {
   it('falls back to a supplied safe message', () => {
     expect(authErrorMessage({ code: 'auth/unknown', message: 'Try again.' })).toBe('Try again.');
   });
+
+  it('explains the storage-partitioned redirect failure with a way forward', () => {
+    const message = 'Unable to process request due to missing initial state. This may happen if browser sessionStorage is inaccessible or accidentally cleared.';
+    expect(authErrorMessage({ code: 'auth/internal-error', message })).toContain('Chrome/Safari');
+    expect(authErrorMessage({ code: 'auth/redirect-cancelled-by-user' })).toContain('email & password');
+  });
 });

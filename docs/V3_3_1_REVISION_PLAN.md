@@ -1,7 +1,7 @@
 # RaktFlow V3.3.1 — Revision Plan (from user bug list + blueprint)
 
-> **STATUS (2026-08-27): IMPLEMENTED + VALIDATED locally.** pytest 50/50, Ruff clean,
-> ESLint + Vitest 5/5, Vite/PWA production build clean, 8 locales × 803 keys in parity.
+> **STATUS (2026-08-28): IMPLEMENTED + VALIDATED locally.** pytest 51/51, Ruff clean,
+> ESLint + Vitest 6/6, Vite/PWA production build clean, 8 locales × 812 keys in parity.
 > Remaining: deploy (API → web → hard refresh), then re-verify on the live site.
 > Detailed ledger: `docs/CHANGELOG_V3_3_1.md`.
 
@@ -68,3 +68,11 @@ Everything is additive. No rerun of migration 005. No PII in QR payloads. No med
   (see docs/ROADMAP notes).
 - Component parent-child expiry engine, PENDING_DISCARD queue, reconciliation auto-lock:
   these need new tables + a migration after user sign-off (planned for V3.4).
+
+## 9. Live-audit hotfix (Google sign-in + cold start)
+
+- Google sign-in is popup-first with redirect fallback; partitioned-browser
+  ("missing initial state") failures now get actionable guidance.
+- Bootstrap retries transport failures twice while the API wakes up.
+- Verify list: sign in on a normal browser AND an in-app/private browser;
+  hospital portal after API deploy; drive report per completed drive.

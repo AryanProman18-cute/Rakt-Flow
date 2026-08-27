@@ -97,3 +97,60 @@ credentials, or medical certification were deliberately deferred to V3.4 (see
 
 - Frontend and backend changed together (v02 questionnaire) — deploy the API first, then the
   web app, then fully close and reopen the tab (Workbox caches assets/pages).
+
+## Hotfix: Google sign-in in private/in-app browsers + cold-start resilience
+
+Audited after the first live roll-out (two new user screenshots):
+
+- **Google sign-in now uses popup-first flow.** `signInWithRedirect` fails in
+  storage-partitioned browsers (WhatsApp/Instagram/Telegram in-app browsers, Brave,
+  some Safari/Firefox privacy modes) with Firebase's "missing initial state" error —
+  the handler page cannot read the pending state across the partition boundary.
+  Popup mode communicates over `postMessage` and works there. Fallback to redirect
+  remains for browsers that block popups. Vercel's `/__/auth/*` proxy is unchanged,
+  so the redirect path stays first-party where it is used.
+- **Clear guidance instead of the raw Firebase error**: the "missing initial state"
+  message is now translated into "open in Chrome/Safari or use email & password",
+  with mappings for `auth/redirect-cancelled-by-user`, `auth/unauthorized-domain`,
+  `auth/web-storage-unsupported`.
+- **Bootstrap auto-retry**: if the account bootstrap fails because the free Render
+  service is still waking up (transport error only — API rejections still surface
+  immediately), the app re-warms the API and retries twice with a 3.5 s pause before
+  showing the error screen with the manual Retry button. The existing `/api/v1/ping`
+  pre-warm on app load stays.
+- Tests: `auth.test.js` extended to 6 (partitioned-browser + redirect-cancelled mapping).
+
+## Hotfix 2: screening submit unblocked + component release gates (user re-test)
+
+**The live report "dates are still compulsory" was traced to two causes:**
+1. The live API (not yet redeployed) still rejects `IN-PRECHECK-2026-02` and demands
+   `review_hospital_id` + `consent_to_selected_facility_review` — so every submit
+   returned raw field errors that looked like the form was still forcing answers.
+   The UI now detects exactly this signature and shows a clear message
+   (`error.outdatedApi`): *"The server is still running an older version of
+   RaktFlow… deploy the latest API, then submit again."*
+2. Native browser `required` toggling on the date inputs could block with confusing
+   bubbles. Dates are now **never** natively required; `saveScreening` validates
+   them in JS with precise toasts:
+   - every Yes/No question must be answered (toast names the first missing one);
+   - a date is needed **only** when its linked answer is "Yes" (toast says which);
+   - both attestation consents must be ticked;
+   - date values are forced to `null` in the payload when the answer is not Yes
+     (never sent wrongly), weight stays 25–250 kg with its own message.
+   The form uses `novalidate` so no stray browser bubbles appear.
+
+**Component release gates (blueprint item, now implemented — no migration):**
+- `app/services/components.py`: `verify_status_transition()` — hard gates:
+  expired units can never be reserved/released/issued/transfused; double issue
+  blocked; transfusion only from an issued unit; invalid `from` states blocked.
+  Discarding an expired unit is still allowed (safe disposition).
+- `app/api/routes/components.py` event route now enforces the gates (409 + reason).
+- Frontend: the component event modal shows the **locked state** — a warning banner
+  with the reason and the blocked options disabled with tooltips
+  (`components.notPermitted` + per-reason copy, 8 locales).
+- Tests: `test_component_release_gates_block_unsafe_forwarding` (healthy flow,
+  expired forward, double issue, transfuse-before-issue, discard-expired).
+- Locales: 812 keys × 8 languages, full parity.
+
+**Already in this hotfix round:** Google sign-in popup-first (partitioned browsers),
+bootstrap auto-retry, `RENDER_HEALTH_URL` keep-warm activation.

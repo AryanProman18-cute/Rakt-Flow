@@ -33,7 +33,7 @@ from app.schemas.components import (
     HandoverReceive,
 )
 from app.services.audit import append_audit_event
-from app.services.components import default_expiry, temperature_status
+from app.services.components import default_expiry, temperature_status, verify_status_transition
 
 router = APIRouter(prefix="/components", tags=["component traceability"])
 
@@ -340,6 +340,12 @@ async def record_component_event(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Component is not held by this facility")
     if component.status in {"TRANSFUSED", "DISCARDED"}:
         raise HTTPException(status.HTTP_409_CONFLICT, "Finalized components are immutable")
+    try:
+        verify_status_transition(
+            component.status, payload.event_type, component.expires_at, payload.occurred_at
+        )
+    except ValueError as error:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
     if payload.event_type in {"TRANSFUSED", "DISCARDED"}:
         unit_for_duty_check = await session.get(BloodUnit, component.blood_unit_id)
         donation_for_duty_check = await session.get(

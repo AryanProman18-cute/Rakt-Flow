@@ -657,7 +657,7 @@ function screeningModal() {
     title: tr('screening.title'),
     subtitle: tr('screening.subtitle'),
     wide: true,
-    body: `<form id="screening-form" class="screening-form"><div class="screening-notice">${icon('shield')}<span><strong>${esc(tr('screening.noticeTitle'))}</strong><small>${esc(tr('screening.noticeBody'))}</small></span></div><section><div class="form-grid"><div class="field"><label>${esc(tr('screening.weight'))}</label><input class="input" name="weight_kg" type="number" min="25" max="250" step="0.1" required><span class="field-hint">${esc(tr('screening.weightHint'))}</span></div><div class="field"><label>${esc(tr('screening.lastDonation'))}</label><input class="input" name="last_donation_date" type="date"><span class="field-hint">${esc(tr('screening.dateIfYes'))}</span></div>${dateField('antibiotics_completed_date','screening.antibioticsCompleted','fever_infection_or_antibiotics')}${dateField('surgery_or_transfusion_date','screening.surgeryDate','surgery_transfusion_or_hospitalization_last_12_months')}${dateField('tattoo_or_piercing_date','screening.tattooDate','tattoo_or_piercing_last_12_months')}${dateField('malaria_risk_return_date','screening.travelReturnDate','malaria_risk_travel_or_residence')}${dateField('delivery_or_pregnancy_end_date','screening.pregnancyEndDate','pregnancy_breastfeeding_or_recent_delivery')}</div></section><section><div class="question-list">${question('feeling_well_today','screening.feelingWell',true)}${question('fever_infection_or_antibiotics','screening.infection')}${question('medication_requires_review','screening.medication')}${question('heart_lung_kidney_liver_or_bleeding_condition','screening.conditions')}${question('surgery_transfusion_or_hospitalization_last_12_months','screening.procedure')}${question('tattoo_or_piercing_last_12_months','screening.tattoo')}${question('malaria_risk_travel_or_residence','screening.travel')}${question('pregnancy_breastfeeding_or_recent_delivery','screening.pregnancy',false,true)}${question('alcohol_within_24_hours','screening.alcohol24h')}${question('recent_immunization_14_days','screening.immunization14d')}</div></section><section class="attestation-block"><p class="muted">${esc(tr('screening.reviewAssignmentHelp'))}</p><label><input type="checkbox" name="answers_are_truthful" required><span><strong>${esc(tr('screening.truth'))}</strong></span></label><label><input type="checkbox" name="consent_to_clinical_review" required><span><strong>${esc(tr('screening.reviewConsent'))}</strong></span></label></section></form>`,
+    body: `<form id="screening-form" class="screening-form" novalidate><div class="screening-notice">${icon('shield')}<span><strong>${esc(tr('screening.noticeTitle'))}</strong><small>${esc(tr('screening.noticeBody'))}</small></span></div><section><div class="form-grid"><div class="field"><label>${esc(tr('screening.weight'))}</label><input class="input" name="weight_kg" type="number" min="25" max="250" step="0.1" required><span class="field-hint">${esc(tr('screening.weightHint'))}</span></div><div class="field"><label>${esc(tr('screening.lastDonation'))}</label><input class="input" name="last_donation_date" type="date"><span class="field-hint">${esc(tr('screening.dateIfYes'))}</span></div>${dateField('antibiotics_completed_date','screening.antibioticsCompleted','fever_infection_or_antibiotics')}${dateField('surgery_or_transfusion_date','screening.surgeryDate','surgery_transfusion_or_hospitalization_last_12_months')}${dateField('tattoo_or_piercing_date','screening.tattooDate','tattoo_or_piercing_last_12_months')}${dateField('malaria_risk_return_date','screening.travelReturnDate','malaria_risk_travel_or_residence')}${dateField('delivery_or_pregnancy_end_date','screening.pregnancyEndDate','pregnancy_breastfeeding_or_recent_delivery')}</div></section><section><div class="question-list">${question('feeling_well_today','screening.feelingWell',true)}${question('fever_infection_or_antibiotics','screening.infection')}${question('medication_requires_review','screening.medication')}${question('heart_lung_kidney_liver_or_bleeding_condition','screening.conditions')}${question('surgery_transfusion_or_hospitalization_last_12_months','screening.procedure')}${question('tattoo_or_piercing_last_12_months','screening.tattoo')}${question('malaria_risk_travel_or_residence','screening.travel')}${question('pregnancy_breastfeeding_or_recent_delivery','screening.pregnancy',false,true)}${question('alcohol_within_24_hours','screening.alcohol24h')}${question('recent_immunization_14_days','screening.immunization14d')}</div></section><section class="attestation-block"><p class="muted">${esc(tr('screening.reviewAssignmentHelp'))}</p><label><input type="checkbox" name="answers_are_truthful" required><span><strong>${esc(tr('screening.truth'))}</strong></span></label><label><input type="checkbox" name="consent_to_clinical_review" required><span><strong>${esc(tr('screening.reviewConsent'))}</strong></span></label></section></form>`,
     footer: `<button class="btn btn-secondary" data-action="close-modal">${esc(tr('common.cancel'))}</button><button class="btn btn-primary" data-action="submit-screening">${esc(tr('screening.submit'))}</button>`,
     onOpen: () => {
       const form = document.querySelector('#screening-form');
@@ -666,7 +666,8 @@ function screeningModal() {
         if (!radio || !radio.checked) return;
         const dateInput = form.querySelector(`input[data-required-when="${radio.name}"]`);
         if (!dateInput) return;
-        dateInput.required = radio.value === 'true';
+        // Dates are never natively required — saveScreening validates them
+        // with a clear message only when the linked answer is "Yes".
         if (radio.value !== 'true') dateInput.value = '';
       });
     }
@@ -796,9 +797,17 @@ function componentPolicyModal() {
 function componentEventModal(componentId) {
   const component = state.components.find(item => item.id === componentId); if (!component) return;
   const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  const gatedReason = value => {
+    if (['RESERVED','RELEASED','ISSUED','TRANSFUSED'].includes(value) && ['EXPIRED','EXPIRES_WITHIN_24_HOURS'].includes(component.expiry_state)) return tr('components.expiredIssue');
+    if (value === 'ISSUED' && component.status === 'ISSUED') return tr('components.alreadyIssued');
+    if (value === 'TRANSFUSED' && component.status !== 'ISSUED') return tr('components.transfusedFromIssued');
+    if (['TRANSFUSED','DISCARDED'].includes(value) && ['TRANSFUSED','DISCARDED'].includes(component.status)) return tr('components.finalizedImmutable');
+    return '';
+  };
+  const blocked = ['RESERVED','RELEASED','ISSUED','TRANSFUSED','DISCARDED','QUARANTINED'].map(gatedReason).filter(Boolean);
   openModal({
     title: tr('components.recordEvent'), subtitle: component.component_reference,
-    body: `<form id="component-event-form" data-component-id="${component.id}" class="form-grid"><div class="field"><label>${esc(tr('common.status'))}</label><select class="select" name="event_type">${['RESERVED','RELEASED','ISSUED','TRANSFUSED','DISCARDED','QUARANTINED'].map(value => `<option value="${value}">${esc(statusLabel(value))}</option>`).join('')}</select></div><div class="field"><label>${esc(tr('common.date'))}</label><input class="input" name="occurred_at" type="datetime-local" value="${now.toISOString().slice(0,16)}" required></div><div class="field"><label>${esc(tr('components.temperatureOptional'))}</label><input class="input" name="temperature_c" type="number" min="-80" max="40" step="0.1"></div><div class="field"><label>${esc(tr('common.reference'))}</label><input class="input" name="event_reference" required></div><div class="field full"><label>${esc(tr('common.note'))}</label><textarea class="textarea" name="note"></textarea></div><label class="field full consent-row"><input type="checkbox" name="authorized_confirmation" required><span>${esc(tr('components.eventConfirmation'))}</span></label><div class="config-note">${icon('lock','icon-sm')} ${esc(tr('components.noPatientIdentity'))}</div></form>`,
+    body: `<form id="component-event-form" data-component-id="${component.id}" class="form-grid">${blocked.length ? `<div class="config-warning full locked-warning">${icon('lock','icon-sm')} ${esc(blocked[0])}</div>` : ''}<div class="field"><label>${esc(tr('common.status'))}</label><select class="select" name="event_type">${['RESERVED','RELEASED','ISSUED','TRANSFUSED','DISCARDED','QUARANTINED'].map(value => { const reason = gatedReason(value); return `<option value="${value}" ${reason ? `disabled title="${esc(`${tr('components.notPermitted')}: ${reason}`)}"` : ''}>${esc(statusLabel(value))}${reason ? ` — ${esc(tr('components.notPermitted'))}` : ''}</option>`; }).join('')}</select></div><div class="field"><label>${esc(tr('common.date'))}</label><input class="input" name="occurred_at" type="datetime-local" value="${now.toISOString().slice(0,16)}" required></div><div class="field"><label>${esc(tr('components.temperatureOptional'))}</label><input class="input" name="temperature_c" type="number" min="-80" max="40" step="0.1"></div><div class="field"><label>${esc(tr('common.reference'))}</label><input class="input" name="event_reference" required></div><div class="field full"><label>${esc(tr('common.note'))}</label><textarea class="textarea" name="note"></textarea></div><label class="field full consent-row"><input type="checkbox" name="authorized_confirmation" required><span>${esc(tr('components.eventConfirmation'))}</span></label><div class="config-note">${icon('lock','icon-sm')} ${esc(tr('components.noPatientIdentity'))}</div></form>`,
     footer: `<button class="btn btn-secondary" data-action="close-modal">${esc(tr('common.cancel'))}</button><button class="btn btn-primary" data-action="save-component-event">${esc(tr('common.save'))}</button>`
   });
 }
@@ -939,8 +948,20 @@ async function submitAuth(form, type) {
 
 async function bootstrapSession(user) {
   state.screen = 'loading'; state.loadingKey = 'loading.workspace'; state.authError = ''; render();
+  let account = null;
+  // A cold Render service can refuse the first connection while it wakes up.
+  // Retry transport failures (not API rejections) a couple of times with a
+  // short pause before surfacing the error screen with the manual Retry button.
+  for (let attempt = 1; attempt <= 3 && !account; attempt += 1) {
+    try {
+      prewarmApi();
+      account = await apiFetch('/auth/bootstrap', { method: 'POST', body: '{}' });
+    } catch (error) {
+      if (error?.status || attempt === 3) throw error;
+      await new Promise(resolve => setTimeout(resolve, 3500));
+    }
+  }
   try {
-    const account = await apiFetch('/auth/bootstrap', { method: 'POST', body: '{}' });
     await user.getIdToken(true);
     state.authUser = user;
     state.account = account;
@@ -1224,12 +1245,40 @@ async function saveProfile() {
 }
 
 function parseAnswer(value) { return value === 'null' ? null : value === 'true'; }
+const SCREENING_DATE_DEPENDS_ON = {
+  antibiotics_completed_date: 'fever_infection_or_antibiotics',
+  surgery_or_transfusion_date: 'surgery_transfusion_or_hospitalization_last_12_months',
+  tattoo_or_piercing_date: 'tattoo_or_piercing_last_12_months',
+  malaria_risk_return_date: 'malaria_risk_travel_or_residence',
+  delivery_or_pregnancy_end_date: 'pregnancy_breastfeeding_or_recent_delivery'
+};
+
 async function saveScreening() {
-  const form = document.querySelector('#screening-form'); if (!form?.reportValidity()) return;
+  const form = document.querySelector('#screening-form'); if (!form) return;
   const data = new FormData(form);
   const weight = Number(data.get('weight_kg'));
   if (!Number.isFinite(weight) || weight < 25 || weight > 250) {
     toast(tr('error.title'), tr('screening.weightHint'), 'warning'); return;
+  }
+  // Every question needs an answer so the clinical review is meaningful.
+  // The date fields themselves are never force-required: they are validated
+  // below only when the linked answer is "Yes".
+  const questionMap = Object.fromEntries(SCREENING_YES_FIELDS);
+  const unanswered = SCREENING_YES_FIELDS.filter(([name]) => !data.get(name));
+  if (unanswered.length) {
+    const first = document.querySelector(`input[name="${unanswered[0][0]}"]`);
+    first?.scrollIntoView({ behavior: 'smooth', block: 'center' }); first?.focus();
+    toast(tr('error.title'), `${tr('screening.answerAll')} — ${tr(unanswered[0][1])}`, 'warning'); return;
+  }
+  for (const [dateName, dependsOn] of Object.entries(SCREENING_DATE_DEPENDS_ON)) {
+    const answer = data.get(dependsOn);
+    if (answer === 'true' && !data.get(dateName)) {
+      const labelKey = questionMap[dependsOn] || 'common.date';
+      toast(tr('error.title'), `${tr(labelKey)}: ${tr('screening.dateRequired')}`, 'warning'); return;
+    }
+  }
+  if (!data.has('answers_are_truthful') || !data.has('consent_to_clinical_review')) {
+    toast(tr('error.title'), tr('screening.consentsRequired'), 'warning'); return;
   }
   const names = ['feeling_well_today','fever_infection_or_antibiotics','medication_requires_review','heart_lung_kidney_liver_or_bleeding_condition','surgery_transfusion_or_hospitalization_last_12_months','tattoo_or_piercing_last_12_months','malaria_risk_travel_or_residence','pregnancy_breastfeeding_or_recent_delivery','alcohol_within_24_hours','recent_immunization_14_days'];
   const payload = {
@@ -1244,8 +1293,22 @@ async function saveScreening() {
     consent_to_clinical_review:data.has('consent_to_clinical_review')
   };
   names.forEach(name => payload[name] = parseAnswer(data.get(name)));
+  // Conditional dates: only send a date when its question was answered Yes.
+  for (const dateName of Object.keys(SCREENING_DATE_DEPENDS_ON)) {
+    const dependsOn = SCREENING_DATE_DEPENDS_ON[dateName];
+    if (payload[dependsOn] !== true) payload[dateName] = null;
+  }
   try { await apiFetch('/donors/me/screenings', { method:'POST', body:JSON.stringify(payload) }); state.profile = await apiFetch('/donors/me/profile'); closeModal(); render(); toast(tr('success.title'), tr('success.screeningSubmitted')); }
-  catch (error) { toast(tr('error.title'), friendlyError(error), 'warning'); }
+  catch (error) {
+    // The current questionnaire (v02) is rejected by an older backend: the
+    // server still demands review_hospital_id / the removed consent. Tell the
+    // operator exactly that instead of showing raw field errors.
+    const raw = String(error?.message || '');
+    if (/review_hospital_id|consent_to_selected_facility_review|IN-PRECHECK-2026-01/i.test(raw)) {
+      toast(tr('error.title'), tr('error.outdatedApi'), 'warning'); return;
+    }
+    toast(tr('error.title'), friendlyError(error), 'warning');
+  }
 }
 
 

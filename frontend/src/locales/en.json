@@ -801,5 +801,14 @@
   "screening.weightHint": "Minimum 25 kg — donation is not possible below this weight.",
   "screening.alcohol24h": "Have you had alcohol in the last 24 hours?",
   "screening.immunization14d": "Any vaccination in the last 14 days?",
-  "screening.reviewAssignmentHelp": "Your answers stay private — only authorised clinical staff at the reviewing facility can see them. RaktFlow does not make clinical decisions; a qualified clinician decides at the drive."
+  "screening.reviewAssignmentHelp": "Your answers stay private — only authorised clinical staff at the reviewing facility can see them. RaktFlow does not make clinical decisions; a qualified clinician decides at the drive.",
+  "screening.answerAll": "Please answer every question",
+  "screening.dateRequired": "choose the date because you answered Yes",
+  "screening.consentsRequired": "Please accept both statements at the bottom to continue",
+  "error.outdatedApi": "The server is still running an older version of RaktFlow (it asks for the removed review-facility fields). Deploy the latest API, then submit again.",
+  "components.notPermitted": "Not permitted",
+  "components.expiredIssue": "Expired units cannot be reserved, released, issued or transfused",
+  "components.alreadyIssued": "This unit is already issued to a recipient",
+  "components.transfusedFromIssued": "Only an issued unit can be recorded as transfused",
+  "components.finalizedImmutable": "Finalized units cannot be changed further"
 }

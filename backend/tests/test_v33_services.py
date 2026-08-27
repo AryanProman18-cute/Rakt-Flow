@@ -2,6 +2,8 @@ import base64
 from datetime import UTC, date, datetime, timedelta
 from uuid import uuid4
 
+import pytest
+
 from app.api.routes.accounts import age_on
 from app.core.config import Settings
 from app.schemas.accounts import ScreeningSubmission
@@ -152,3 +154,35 @@ def test_split_requires_at_least_one_component():
         pass
     else:
         raise AssertionError("empty component separation must be rejected")
+
+
+def test_component_release_gates_block_unsafe_forwarding():
+    from datetime import UTC, datetime, timedelta
+
+    from app.services.components import verify_status_transition
+
+    now = datetime.now(UTC)
+    future_expiry = now + timedelta(days=30)
+    past_expiry = now - timedelta(minutes=1)
+
+    # Healthy flow: quarantine -> release -> issue -> transfuse is allowed.
+    verify_status_transition("QUARANTINED", "RELEASED", future_expiry, now)
+    verify_status_transition("AVAILABLE", "ISSUED", future_expiry, now)
+    verify_status_transition("ISSUED", "TRANSFUSED", future_expiry, now)
+
+    # Expired units can never move towards a recipient (hard release gate).
+    with pytest.raises(ValueError, match="Expired"):
+        verify_status_transition("AVAILABLE", "ISSUED", past_expiry, now)
+    with pytest.raises(ValueError, match="Expired"):
+        verify_status_transition("QUARANTINED", "RELEASED", past_expiry, now)
+
+    # Double issue is blocked.
+    with pytest.raises(ValueError, match="already issued"):
+        verify_status_transition("ISSUED", "ISSUED", future_expiry, now)
+
+    # Transfusion is only valid from an issued unit.
+    with pytest.raises(ValueError, match="issued unit"):
+        verify_status_transition("AVAILABLE", "TRANSFUSED", future_expiry, now)
+
+    # Discard of an expired unit is still allowed (safe disposition).
+    verify_status_transition("AVAILABLE", "DISCARDED", past_expiry, now)
