@@ -1,4 +1,4 @@
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Annotated
 from uuid import UUID
 
@@ -29,6 +29,7 @@ from app.schemas.accounts import (
     DonationRecordCreate,
     IntakeDonorView,
     ManualCheckInRequest,
+    PreCheckSummary,
     ScanPassRequest,
 )
 from app.services.audit import append_audit_event
@@ -73,14 +74,21 @@ async def _mark_registration_checked_in(
 
 
 async def _intake_view(
-    session: AsyncSession, checkin: CheckIn, profile: DonorProfile, method: str
+    session: AsyncSession,
+    checkin: CheckIn,
+    profile: DonorProfile,
+    method: str,
+    settings: Settings | None = None,
+    screening: Screening | None = None,
 ) -> IntakeDonorView:
-    screening = await session.scalar(
-        select(Screening)
-        .where(Screening.donor_id == profile.id)
-        .order_by(Screening.created_at.desc())
-        .limit(1)
-    )
+    if screening is None:
+        screening = await session.scalar(
+            select(Screening)
+            .where(Screening.donor_id == profile.id)
+            .order_by(Screening.created_at.desc())
+            .limit(1)
+        )
+    summary = _precheck_summary(screening, profile.id, settings)
     return IntakeDonorView(
         checkin_id=checkin.id,
         donor_reference=profile.reference_code,
@@ -92,7 +100,51 @@ async def _intake_view(
         last_donation_date=profile.last_donation_date,
         clearance_status=checkin.clearance_status,
         checkin_method=method,
+        screening=summary,
     )
+
+
+def _precheck_summary(
+    screening: Screening | None, donor_id: UUID, settings: Settings | None
+) -> PreCheckSummary | None:
+    """Decrypt and project the latest pre-check for authorised staff display.
+
+    The donor pass token carries only identifiers; the clinical answers are
+    retrieved server-side and never placed inside the QR payload.
+    """
+    if screening is None:
+        return None
+    answers: dict = {}
+    if settings is not None and screening.encrypted_answers:
+        try:
+            vault = PrivacyVault(settings.pii_encryption_key, settings.phone_hash_pepper)
+            answers = vault.decrypt_json(screening.encrypted_answers, context=f"screening:{donor_id}")
+        except Exception:
+            answers = {}
+    field_names = (
+        "questionnaire_version", "weight_kg", "feeling_well_today",
+        "fever_infection_or_antibiotics", "medication_requires_review",
+        "heart_lung_kidney_liver_or_bleeding_condition",
+        "surgery_transfusion_or_hospitalization_last_12_months",
+        "tattoo_or_piercing_last_12_months", "malaria_risk_travel_or_residence",
+        "pregnancy_breastfeeding_or_recent_delivery",
+        "alcohol_within_24_hours", "recent_immunization_14_days",
+        "last_donation_date", "antibiotics_completed_date",
+        "surgery_or_transfusion_date", "tattoo_or_piercing_date",
+        "malaria_risk_return_date", "delivery_or_pregnancy_end_date",
+        "eligible_on",
+    )
+    data = {name: answers.get(name) for name in field_names}
+    data.update(
+        outcome=screening.outcome,
+        review_status=screening.review_status,
+        flags=list(screening.flags or []),
+        deferral_reason_codes=list(screening.deferral_reason_codes or []),
+        eligible_on=screening.eligible_on,
+        valid_until=screening.valid_until,
+        attested_at=screening.attested_at,
+    )
+    return PreCheckSummary(**data)
 
 
 @router.post("/scan", response_model=IntakeDonorView)
@@ -121,7 +173,20 @@ async def scan_donor_pass(
         raise HTTPException(status.HTTP_409_CONFLICT, "Donor profile or approved screening is no longer current")
     existing = await session.scalar(select(CheckIn).where(CheckIn.idempotency_key == payload.idempotency_key))
     if existing:
-        return await _intake_view(session, existing, profile, existing.checkin_method)
+        return await _intake_view(session, existing, profile, existing.checkin_method, settings, latest_screening)
+    recent = await session.scalar(
+        select(CheckIn)
+        .where(
+            CheckIn.drive_id == payload.drive_id,
+            CheckIn.donor_id == profile.id,
+            CheckIn.scanned_at > datetime.now(UTC) - timedelta(minutes=5),
+        )
+        .order_by(CheckIn.scanned_at.desc())
+        .limit(1)
+    )
+    if recent is not None:
+        # The same pass was just scanned (idempotent re-scan) — return the existing check-in.
+        return await _intake_view(session, recent, profile, recent.checkin_method, settings, latest_screening)
     checkin = CheckIn(
         drive_id=payload.drive_id,
         donor_id=profile.id,
@@ -139,7 +204,7 @@ async def scan_donor_pass(
     )
     await append_audit_event(session, actor_uid=actor.uid, action="DONOR_QR_CHECKED_IN", resource_type="checkin", resource_id=checkin.id, metadata={"drive_id": str(payload.drive_id)})
     await session.commit()
-    return await _intake_view(session, checkin, profile, "QR")
+    return await _intake_view(session, checkin, profile, "QR", settings, latest_screening)
 
 
 @router.post("/manual", response_model=IntakeDonorView)
@@ -148,6 +213,7 @@ async def manual_checkin(
     actor: Annotated[Actor, Depends(require_roles("ROLE_ORGANIZER"))],
     staff: Annotated[User, Depends(database_user)],
     session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> IntakeDonorView:
     await _authorize_drive(session, actor, staff, payload.drive_id)
     profile = await session.scalar(
@@ -168,7 +234,19 @@ async def manual_checkin(
         )
     existing = await session.scalar(select(CheckIn).where(CheckIn.idempotency_key == payload.idempotency_key))
     if existing:
-        return await _intake_view(session, existing, profile, existing.checkin_method)
+        return await _intake_view(session, existing, profile, existing.checkin_method, settings, approved_screening)
+    recent = await session.scalar(
+        select(CheckIn)
+        .where(
+            CheckIn.drive_id == payload.drive_id,
+            CheckIn.donor_id == profile.id,
+            CheckIn.scanned_at > datetime.now(UTC) - timedelta(minutes=5),
+        )
+        .order_by(CheckIn.scanned_at.desc())
+        .limit(1)
+    )
+    if recent is not None:
+        return await _intake_view(session, recent, profile, recent.checkin_method, settings, approved_screening)
     checkin = CheckIn(
         drive_id=payload.drive_id,
         donor_id=profile.id,
@@ -186,7 +264,7 @@ async def manual_checkin(
     )
     await append_audit_event(session, actor_uid=actor.uid, action="DONOR_MANUAL_CHECKED_IN", resource_type="checkin", resource_id=checkin.id, metadata={"drive_id": str(payload.drive_id)})
     await session.commit()
-    return await _intake_view(session, checkin, profile, "MANUAL")
+    return await _intake_view(session, checkin, profile, "MANUAL", settings, approved_screening)
 
 
 @router.post("/{checkin_id}/assessment")

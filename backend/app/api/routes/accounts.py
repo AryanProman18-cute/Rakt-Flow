@@ -320,6 +320,41 @@ def calculated_deferral_window(
     return max(candidates, default=None), sorted(set(reasons))
 
 
+async def _auto_assign_review_facilities(
+    session: AsyncSession, profile: DonorProfile, limit: int = 2
+) -> list[HospitalProfile]:
+    """Pick verified facilities closest to the donor (by stored coordinates).
+
+    Distances are in degrees (SRID 4326) which is sufficient for ranking.
+    Falls back to verified facilities without coordinates when none are near.
+    """
+    verified_query = select(HospitalProfile).where(HospitalProfile.status == "VERIFIED")
+    if profile.location is not None:
+        # Rank against the donor's stored point on the database side (geography type
+        # preserved), matching the proven pattern used by the nearby-drives query.
+        donor_point = (
+            select(DonorProfile.location)
+            .where(DonorProfile.id == profile.id)
+            .scalar_subquery()
+        )
+        ranked = (
+            verified_query
+            .where(HospitalProfile.location.is_not(None))
+            .order_by(func.ST_Distance(HospitalProfile.location, donor_point), HospitalProfile.created_at.desc())
+        )
+        nearby = list((await session.scalars(ranked.limit(limit))).all())
+        if nearby:
+            return nearby
+    fallback = (
+        await session.scalars(
+            verified_query.order_by(
+                func.lower(HospitalProfile.state).asc(), HospitalProfile.created_at.desc()
+            )
+        )
+    )
+    return list(fallback.all())[:limit]
+
+
 @router.post("/donors/me/screenings", response_model=ScreeningResult, status_code=status.HTTP_201_CREATED)
 async def submit_screening(
     payload: ScreeningSubmission,
@@ -327,25 +362,31 @@ async def submit_screening(
     session: Annotated[AsyncSession, Depends(get_session)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> ScreeningResult:
-    if not (
-        payload.answers_are_truthful
-        and payload.consent_to_clinical_review
-        and payload.consent_to_selected_facility_review
-    ):
+    if not (payload.answers_are_truthful and payload.consent_to_clinical_review):
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
-            "Attestation and explicit selected-facility review consent are required",
-        )
-    review_hospital = await session.get(HospitalProfile, payload.review_hospital_id)
-    if review_hospital is None or review_hospital.status != "VERIFIED":
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
-            "Choose a verified hospital or blood bank for confidential review",
+            "Truthful attestation and explicit consent to clinical review are required",
         )
     user = await session.scalar(select(User).where(User.firebase_uid == actor.uid))
     profile = await session.scalar(select(DonorProfile).where(DonorProfile.user_id == user.id)) if user else None
     if profile is None or profile.date_of_birth is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Complete donor profile before screening")
+
+    # Review assignment: honor an explicit donor choice, otherwise route the
+    # confidential review to verified facilities nearest to the donor, falling
+    # back to the platform admin queue when no facility is available yet.
+    review_facilities: list[HospitalProfile] = []
+    donor_selected_facility: HospitalProfile | None = None
+    if payload.review_hospital_id is not None:
+        donor_selected_facility = await session.get(HospitalProfile, payload.review_hospital_id)
+        if donor_selected_facility is None or donor_selected_facility.status != "VERIFIED":
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "The selected hospital or blood bank is not verified yet",
+            )
+        review_facilities = [donor_selected_facility]
+    else:
+        review_facilities = await _auto_assign_review_facilities(session, profile)
 
     flags: list[str] = []
     donor_age = age_on(profile.date_of_birth)
@@ -372,6 +413,10 @@ async def submit_screening(
         flags.append("TRAVEL_REQUIRES_REVIEW")
     if payload.pregnancy_breastfeeding_or_recent_delivery:
         flags.append("PREGNANCY_RELATED_REVIEW")
+    if payload.alcohol_within_24_hours:
+        flags.append("ALCOHOL_WITHIN_24H_REQUIRES_REVIEW")
+    if payload.recent_immunization_14_days:
+        flags.append("RECENT_IMMUNIZATION_REQUIRES_REVIEW")
     if payload.last_donation_date and datetime.now(UTC).date() - payload.last_donation_date < timedelta(days=settings.screening_whole_blood_interval_days):
         flags.append("RECENT_DONATION_REQUIRES_REVIEW")
 
@@ -407,32 +452,48 @@ async def submit_screening(
     )
     session.add(screening)
     await session.flush()
-    session.add(ScreeningReviewAssignment(
-        screening_id=screening.id,
-        hospital_id=review_hospital.id,
-        selected_by_donor_at=now,
-        purpose_consent_at=now,
-        status="ACTIVE",
-    ))
-    session.add(ConsentRecord(
-        user_id=user.id,
-        purpose_code="SELECTED_FACILITY_PRECHECK_REVIEW",
-        granted=True,
-        notice_version="DPDP-PLAIN-2026-01",
-        captured_at=now,
-        source="SCREENING",
-        metadata_json={
-            "screening_id": str(screening.id),
-            "hospital_id": str(review_hospital.id),
-        },
-    ))
+    for facility in review_facilities:
+        session.add(ScreeningReviewAssignment(
+            screening_id=screening.id,
+            hospital_id=facility.id,
+            selected_by_donor_at=now if facility.id == (donor_selected_facility.id if donor_selected_facility else None) else None,
+            purpose_consent_at=now if facility.id == (donor_selected_facility.id if donor_selected_facility else None) else None,
+            status="ACTIVE",
+        ))
+    if donor_selected_facility is not None:
+        session.add(ConsentRecord(
+            user_id=user.id,
+            purpose_code="SELECTED_FACILITY_PRECHECK_REVIEW",
+            granted=True,
+            notice_version="DPDP-PLAIN-2026-01",
+            captured_at=now,
+            source="SCREENING",
+            metadata_json={
+                "screening_id": str(screening.id),
+                "hospital_id": str(donor_selected_facility.id),
+            },
+        ))
+    elif review_facilities:
+        session.add(ConsentRecord(
+            user_id=user.id,
+            purpose_code="PRECHECK_NETWORK_REVIEW",
+            granted=True,
+            notice_version="DPDP-PLAIN-2026-01",
+            captured_at=now,
+            source="SCREENING",
+            metadata_json={
+                "screening_id": str(screening.id),
+                "assigned_hospital_ids": [str(facility.id) for facility in review_facilities],
+            },
+        ))
     await append_audit_event(
         session, actor_uid=actor.uid, action="SCREENING_SELF_ATTESTED",
         resource_type="screening", resource_id=screening.id,
         metadata={
             "outcome": outcome, "flag_count": len(flags),
-            "review_hospital_id": str(review_hospital.id),
-            "purpose_consent": "DONOR_SELECTED_CONFIDENTIAL_PRECHECK_REVIEW",
+            "review_hospital_id": str(donor_selected_facility.id) if donor_selected_facility else None,
+            "assigned_hospital_ids": [str(facility.id) for facility in review_facilities],
+            "purpose_consent": "DONOR_SELECTED_CONFIDENTIAL_PRECHECK_REVIEW" if donor_selected_facility else "NETWORK_REVIEW",
         },
     )
     await session.commit()

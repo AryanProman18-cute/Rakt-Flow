@@ -98,7 +98,59 @@ async def my_drives(
     if "ROLE_SUPER_ADMIN" not in actor.roles:
         statement = statement.where(Drive.organizer_user_id == user.id)
     drives = list((await session.scalars(statement)).all())
-    return [view(drive) for drive in drives]
+    result = [view(drive) for drive in drives]
+    if not drives:
+        return result
+    drive_ids = [drive.id for drive in drives]
+    result_by_id = {item["id"]: item for item in result}
+
+    registration_rows = (
+        await session.execute(
+            select(
+                DriveRegistration.drive_id,
+                func.count(DriveRegistration.id),
+            )
+            .where(DriveRegistration.drive_id.in_(drive_ids))
+            .group_by(DriveRegistration.drive_id)
+        )
+    ).all()
+    checkin_rows = (
+        await session.execute(
+            select(
+                CheckIn.drive_id,
+                func.count(CheckIn.id),
+                func.count(CheckIn.id).filter(CheckIn.clearance_status == "CLEARED"),
+            )
+            .where(CheckIn.drive_id.in_(drive_ids))
+            .group_by(CheckIn.drive_id)
+        )
+    ).all()
+    donation_rows = (
+        await session.execute(
+            select(
+                DonationRecord.drive_id,
+                func.count(DonationRecord.id),
+                func.count(func.distinct(DonationRecord.donor_id)),
+                func.coalesce(func.sum(DonationRecord.volume_ml), 0),
+            )
+            .where(DonationRecord.drive_id.in_(drive_ids))
+            .group_by(DonationRecord.drive_id)
+        )
+    ).all()
+    counts = {row[0]: {"registrations": row[1]} for row in registration_rows}
+    for drive_id, total, cleared in checkin_rows:
+        entry = counts.setdefault(drive_id, {})
+        entry.update(checkins=total, cleared=cleared)
+    for drive_id, units, donors, volume in donation_rows:
+        entry = counts.setdefault(drive_id, {})
+        entry.update(units_logged=units, donors=donors, volume_ml=int(volume or 0))
+    for drive in drives:
+        item = result_by_id[str(drive.id)]
+        item["summary"] = counts.get(drive.id, {
+            "registrations": 0, "checkins": 0, "cleared": 0,
+            "units_logged": 0, "donors": 0, "volume_ml": 0,
+        })
+    return result
 
 
 async def _owned_drive(session: AsyncSession, actor: Actor, user: User, drive_id: UUID) -> Drive:

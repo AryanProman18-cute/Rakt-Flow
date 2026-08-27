@@ -80,7 +80,7 @@ class DonorProfileView(BaseModel):
 
 
 class ScreeningSubmission(BaseModel):
-    questionnaire_version: Literal["IN-PRECHECK-2026-01"] = "IN-PRECHECK-2026-01"
+    questionnaire_version: Literal["IN-PRECHECK-2026-01", "IN-PRECHECK-2026-02"] = "IN-PRECHECK-2026-02"
     weight_kg: float = Field(ge=25, le=250)
     feeling_well_today: bool
     fever_infection_or_antibiotics: bool
@@ -90,16 +90,18 @@ class ScreeningSubmission(BaseModel):
     tattoo_or_piercing_last_12_months: bool
     malaria_risk_travel_or_residence: bool
     pregnancy_breastfeeding_or_recent_delivery: bool | None = None
+    alcohol_within_24_hours: bool | None = None
+    recent_immunization_14_days: bool | None = None
     last_donation_date: date | None = None
     antibiotics_completed_date: date | None = None
     surgery_or_transfusion_date: date | None = None
     tattoo_or_piercing_date: date | None = None
     malaria_risk_return_date: date | None = None
     delivery_or_pregnancy_end_date: date | None = None
-    review_hospital_id: UUID
+    review_hospital_id: UUID | None = None
     answers_are_truthful: bool
     consent_to_clinical_review: bool
-    consent_to_selected_facility_review: bool
+    consent_to_selected_facility_review: bool = False
 
 
 class ScreeningResult(BaseModel):
@@ -125,6 +127,41 @@ class ManualCheckInRequest(BaseModel):
     idempotency_key: str = Field(min_length=16, max_length=64)
 
 
+class PreCheckSummary(BaseModel):
+    """Non-identifying clinical summary of the donor's latest pre-check.
+
+    Returned ONLY to authorised staff (organizer on an assigned drive / hospital /
+    admin review queues) after signature verification of the donor pass. The QR
+    token itself never carries any of this data.
+    """
+
+    questionnaire_version: str | None = None
+    outcome: str | None = None
+    review_status: str | None = None
+    flags: list[str] = []
+    deferral_reason_codes: list[str] = []
+    weight_kg: float | None = None
+    feeling_well_today: bool | None = None
+    fever_infection_or_antibiotics: bool | None = None
+    medication_requires_review: bool | None = None
+    heart_lung_kidney_liver_or_bleeding_condition: bool | None = None
+    surgery_transfusion_or_hospitalization_last_12_months: bool | None = None
+    tattoo_or_piercing_last_12_months: bool | None = None
+    malaria_risk_travel_or_residence: bool | None = None
+    pregnancy_breastfeeding_or_recent_delivery: bool | None = None
+    alcohol_within_24_hours: bool | None = None
+    recent_immunization_14_days: bool | None = None
+    last_donation_date: date | None = None
+    antibiotics_completed_date: date | None = None
+    surgery_or_transfusion_date: date | None = None
+    tattoo_or_piercing_date: date | None = None
+    malaria_risk_return_date: date | None = None
+    delivery_or_pregnancy_end_date: date | None = None
+    eligible_on: date | None = None
+    valid_until: datetime | None = None
+    attested_at: datetime | None = None
+
+
 class IntakeDonorView(BaseModel):
     checkin_id: UUID
     donor_reference: str
@@ -136,6 +173,7 @@ class IntakeDonorView(BaseModel):
     last_donation_date: date | None
     clearance_status: str
     checkin_method: Literal["QR", "MANUAL"]
+    screening: PreCheckSummary | None = None
 
 
 class ClinicalAssessmentCreate(BaseModel):

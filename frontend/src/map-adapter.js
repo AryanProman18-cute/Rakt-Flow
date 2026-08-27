@@ -22,7 +22,7 @@ export function miniMapMarkup({ id, center, pins = [], title, subtitle, emptyLab
   if (!Number.isFinite(center?.latitude) || !Number.isFinite(center?.longitude)) return '';
   const validPins = pins
     .filter(pin => Number.isFinite(pin.latitude) && Number.isFinite(pin.longitude))
-    .slice(0, 80)
+    .slice(0, 240)
     .map(pin => ({
       kind: String(pin.kind || 'place'), latitude: Number(pin.latitude), longitude: Number(pin.longitude),
       label: String(pin.label || '')
@@ -31,12 +31,13 @@ export function miniMapMarkup({ id, center, pins = [], title, subtitle, emptyLab
     center: { latitude:Number(center.latitude), longitude:Number(center.longitude), label:String(center.label || '') },
     pins: validPins
   };
-  return `<section class="card nearby-map-card"><div class="card-header"><div><h2 class="card-title">${escapeHtml(title)}</h2><p class="card-subtitle">${escapeHtml(subtitle)}</p></div><span class="badge badge-green">${validPins.length}</span></div><div id="${escapeHtml(id)}" class="embedded-map real-map" data-map-payload="${escapeHtml(encodePayload(payload))}" data-mappls-center="${payload.center.latitude},${payload.center.longitude}"><div class="map-loading"><span></span>${escapeHtml(emptyLabel)}</div></div><div class="embedded-map-summary"><span><i class="legend-user"></i>${escapeHtml(center.label || 'Your location')}</span><span><i class="legend-drive"></i>${escapeHtml(legend.drive || '')}</span><span><i class="legend-centre"></i>${escapeHtml(legend.centre || '')}</span><span><i class="legend-need"></i>${escapeHtml(legend.need || '')}</span></div></section>`;
+  return `<section class="card nearby-map-card"><div class="card-header"><div><h2 class="card-title">${escapeHtml(title)}</h2><p class="card-subtitle">${escapeHtml(subtitle)}</p></div><span class="badge badge-green">${validPins.length}</span></div><div id="${escapeHtml(id)}" class="embedded-map real-map" data-map-payload="${escapeHtml(encodePayload(payload))}" data-mappls-center="${payload.center.latitude},${payload.center.longitude}"><div class="map-loading"><span></span>${escapeHtml(emptyLabel)}</div></div><div class="embedded-map-summary"><span><i class="legend-user"></i>${escapeHtml(center.label || 'Your location')}</span><span><i class="legend-drive"></i>${escapeHtml(legend.drive || '')}</span><span><i class="legend-centre"></i>${escapeHtml(legend.centre || '')}</span><span><i class="legend-bank"></i>${escapeHtml(legend.bank || '')}</span><span><i class="legend-need"></i>${escapeHtml(legend.need || '')}</span></div></section>`;
 }
 
 function markerColor(kind) {
   if (kind === 'centre') return '#0f172a';
   if (kind === 'need') return '#f59e0b';
+  if (kind === 'bank') return '#0b7285';
   return '#e11d48';
 }
 

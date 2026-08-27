@@ -101,7 +101,7 @@ def test_production_rejects_non_https_frontend():
 
 def screening_payload() -> dict:
     return {
-        "questionnaire_version": "IN-PRECHECK-2026-01", "weight_kg": 60,
+        "questionnaire_version": "IN-PRECHECK-2026-02", "weight_kg": 60,
         "feeling_well_today": True, "fever_infection_or_antibiotics": False,
         "medication_requires_review": False,
         "heart_lung_kidney_liver_or_bleeding_condition": False,
@@ -109,25 +109,24 @@ def screening_payload() -> dict:
         "tattoo_or_piercing_last_12_months": False,
         "malaria_risk_travel_or_residence": False,
         "pregnancy_breastfeeding_or_recent_delivery": None,
-        "review_hospital_id": uuid4(), "answers_are_truthful": True,
+        "alcohol_within_24_hours": False, "recent_immunization_14_days": False,
+        "answers_are_truthful": True,
         "consent_to_clinical_review": True,
-        "consent_to_selected_facility_review": True,
     }
 
 
-def test_screening_requires_explicit_selected_facility_consent():
+def test_screening_no_longer_requires_selected_facility_consent():
+    """The donor no longer picks a review facility; the server auto-assigns one."""
     payload = screening_payload()
-    payload.pop("consent_to_selected_facility_review")
-    try:
-        ScreeningSubmission(**payload)
-    except ValueError:
-        pass
-    else:
-        raise AssertionError("selected-facility consent must be explicit")
+    parsed = ScreeningSubmission(**payload)
+    assert parsed.consent_to_selected_facility_review is False
+    assert parsed.review_hospital_id is None
 
 
-def test_screening_accepts_a_specific_review_facility():
+def test_screening_still_accepts_an_explicit_review_facility():
     payload = screening_payload()
+    payload["review_hospital_id"] = uuid4()
+    payload["consent_to_selected_facility_review"] = True
     parsed = ScreeningSubmission(**payload)
     assert parsed.review_hospital_id == payload["review_hospital_id"]
     assert parsed.consent_to_selected_facility_review is True

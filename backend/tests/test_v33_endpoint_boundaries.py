@@ -129,9 +129,10 @@ def test_clinical_queue_is_assignment_scoped_and_minimum_necessary(client):
                     attested_at=datetime.now(UTC), valid_until=datetime.now(UTC) + timedelta(days=1),
                     review_status="PENDING", reviewed_at=None, review_note=None,
                     eligible_on=None, deferral_reason_codes=[], created_at=datetime.now(UTC),
+                    encrypted_answers=None,
                 ),
                 SimpleNamespace(
-                    reference_code="RF-PRIVATE1", date_of_birth=date(1995, 1, 1),
+                    id=uuid4(), reference_code="RF-PRIVATE1", date_of_birth=date(1995, 1, 1),
                     blood_type="O-", city="Visakhapatnam", display_name="Must not leak",
                     phone_encrypted=b"must-not-leak",
                 ),
@@ -301,3 +302,27 @@ def test_configured_cors_allows_known_origin_and_rejects_unknown_origin(client):
     assert allowed.headers["access-control-allow-credentials"] == "true"
     assert rejected.status_code == 400
     assert "access-control-allow-origin" not in rejected.headers
+
+
+def test_auto_assign_review_facilities_uses_stored_location_or_falls_back():
+    """Donor location is a Geography column — ranking must never touch non-existent lat/lng attrs."""
+    import asyncio
+
+    from app.api.routes.accounts import _auto_assign_review_facilities
+
+    facility = SimpleNamespace(
+        id=uuid4(), status="VERIFIED", state="Andhra Pradesh", created_at=datetime.now(UTC)
+    )
+    # Donor without coordinates: must fall back to the verified list, not crash.
+    donor_without_location = SimpleNamespace(location=None)
+    session = QueueSession(scalars=[[facility]])
+    result = asyncio.run(_auto_assign_review_facilities(session, donor_without_location))
+    assert result == [facility]
+    assert "hospital_profiles.status" in session.statements[0]
+
+    # Donor WITH stored location: ranks via ST_Distance against the donor point.
+    donor_with_location = SimpleNamespace(id=uuid4(), location=object())
+    session = QueueSession(scalars=[[facility]])
+    result = asyncio.run(_auto_assign_review_facilities(session, donor_with_location))
+    assert result == [facility]
+    assert "ST_Distance" in session.statements[0]

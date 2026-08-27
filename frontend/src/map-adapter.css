@@ -12,6 +12,7 @@
 .embedded-map-summary .legend-user { background:#2563eb; }
 .embedded-map-summary .legend-centre { background:#0f172a; }
 .embedded-map-summary .legend-need { background:#f59e0b; }
+.embedded-map-summary .legend-bank { background:#0b7285; }
 .location-control { display:flex; align-items:center; gap:12px; }
 @keyframes map-spin { to { transform:rotate(360deg); } }
 @media (max-width:600px) { .embedded-map { min-height:250px; } .location-control { align-items:stretch; flex-direction:column; } .embedded-map-summary { justify-content:center; } }

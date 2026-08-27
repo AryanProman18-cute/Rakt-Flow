@@ -54,38 +54,52 @@ async def apply_for_hospital_account(
     if not actor.email_verified:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Verify your email before applying")
     existing = await session.scalar(select(HospitalProfile).where(HospitalProfile.user_id == user.id))
-    if existing is not None:
+    if existing is not None and existing.status != "REJECTED":
         raise HTTPException(status.HTTP_409_CONFLICT, "A hospital application already exists for this account")
-    duplicate = await session.scalar(
-        select(HospitalProfile.id).where(
-            func.lower(HospitalProfile.registration_number)
-            == payload.registration_number.strip().lower()
+    if existing is not None and existing.status == "REJECTED":
+        # A rejected applicant may resubmit an updated application under the
+        # same profile row (one application per account, updated in place).
+        for field_name in ("facility_name", "registration_number", "institutional_email",
+                           "address", "city", "state"):
+            setattr(existing, field_name, getattr(payload, field_name).strip())
+        existing.registration_number = payload.registration_number.strip()
+        existing.institutional_email = str(payload.institutional_email).lower()
+        existing.rejection_reason = None
+        existing.status = "PENDING"
+        profile = existing
+    else:
+        duplicate = await session.scalar(
+            select(HospitalProfile.id).where(
+                func.lower(HospitalProfile.registration_number)
+                == payload.registration_number.strip().lower()
+            )
         )
-    )
-    if duplicate is not None:
-        raise HTTPException(status.HTTP_409_CONFLICT, "This registration number already has an application")
+        if duplicate is not None:
+            raise HTTPException(status.HTTP_409_CONFLICT, "This registration number already has an application")
+        profile = HospitalProfile(
+            user_id=user.id,
+            facility_name=payload.facility_name.strip(),
+            registration_number=payload.registration_number.strip(),
+            institutional_email=str(payload.institutional_email).lower(),
+            address=payload.address.strip(),
+            city=payload.city.strip(),
+            state=payload.state.strip(),
+            status="PENDING",
+        )
     vault = PrivacyVault(settings.pii_encryption_key, settings.phone_hash_pepper)
     try:
         normalized_phone = normalize_phone(payload.phone)
     except ValueError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
-    profile = HospitalProfile(
-        user_id=user.id,
-        facility_name=payload.facility_name.strip(),
-        registration_number=payload.registration_number.strip(),
-        institutional_email=str(payload.institutional_email).lower(),
-        phone_encrypted=vault.encrypt_text(normalized_phone, context=f"hospital-phone:{user.id}"),
-        address=payload.address.strip(),
-        city=payload.city.strip(),
-        state=payload.state.strip(),
-        status="PENDING",
-    )
+    profile.phone_encrypted = vault.encrypt_text(normalized_phone, context=f"hospital-phone:{user.id}")
+    profile.location = None
     if payload.latitude is not None and payload.longitude is not None:
         profile.location = ST_SetSRID(ST_MakePoint(payload.longitude, payload.latitude), 4326)
-    session.add(profile)
+    if profile.id is None:
+        session.add(profile)
     await session.flush()
     await append_audit_event(
-        session, actor_uid=actor.uid, action="HOSPITAL_APPLICATION_CREATED",
+        session, actor_uid=actor.uid, action="HOSPITAL_APPLICATION_CREATED" if existing is None else "HOSPITAL_APPLICATION_RESUBMITTED",
         resource_type="hospital_profile", resource_id=profile.id,
     )
     await session.commit()

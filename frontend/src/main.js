@@ -5,6 +5,7 @@ import './evidence.css';
 import './settings.css';
 import './logistics.css';
 import QRCode from 'qrcode';
+import { BLOOD_BANK_CENTRES } from './public/blood-banks.js';
 
 import { apiDownload, apiFetch, configuredApiOrigin, isApiConfigured, prewarmApi, publicApiFetch } from './api.js';
 import {
@@ -116,6 +117,7 @@ const state = {
   publicDrives: [],
   publicRequests: [],
   publicCentres: [],
+  publicBanks: BLOOD_BANK_CENTRES,
   facilityCentres: [],
   verifiedNeeds: [],
   campaignLanding: null,
@@ -353,7 +355,7 @@ function donorHome() {
   const profileComplete = Boolean(profile);
   const qrReady = review === 'APPROVED' && profile?.blood_type !== 'UNKNOWN';
   const upcoming = state.registrations.filter(item => ['REGISTERED','CHECKED_IN'].includes(item.status));
-  return `${pageHeader('donor.homeTitle','donor.homeSubtitle',button('open-profile',profile ? 'common.editProfile' : 'common.completeProfile','user','btn-secondary') + button('open-screening','donor.precheckAction','shield','btn-secondary') + button('open-pass','donor.showPass','qr'))}
+  return `${pageHeader('donor.homeTitle','donor.homeSubtitle',button('open-profile',profile ? 'common.editProfile' : 'common.completeProfile','user','btn-secondary') + button('open-screening','donor.precheckAction','shield','btn-secondary'))}
     ${state.campaignLanding ? `<section class="emergency-strip"><span class="emergency-pulse">${icon('calendar')}</span><span class="emergency-copy"><strong>${esc(state.campaignLanding.title)}</strong><span>${esc(fmtDate(state.campaignLanding.drive.starts_at))} · ${esc(state.campaignLanding.drive.venue_name)}</span></span><button class="btn" data-action="register-campaign">${esc(tr('donor.registerNow'))}</button></section>` : ''}
     <div class="journey-grid"><article class="journey-card ${profileComplete ? 'complete' : 'current'}"><span class="journey-number">1</span><div><strong>${esc(tr('donor.stepProfile'))}</strong><p>${esc(profileComplete ? tr('donor.profileComplete') : tr('donor.profileMissing'))}</p>${profile ? `<span class="badge badge-neutral">${esc(profile.blood_type)} · ${esc(profile.city || '')}</span>` : ''}</div><button class="btn btn-secondary btn-sm" data-action="open-profile">${esc(tr(profileComplete ? 'common.edit' : 'common.start'))}</button></article><article class="journey-card ${review === 'PENDING' ? 'current' : review ? 'complete' : ''}"><span class="journey-number">2</span><div><strong>${esc(tr('donor.stepPrecheck'))}</strong><p>${esc(review ? statusLabel(review) : tr('donor.precheckMissing'))}</p>${review === 'PENDING' ? `<small class="muted">${esc(tr('donor.refreshReviewHelp'))}</small>` : ''}${profile?.eligible_on ? `<div class="eligibility-countdown"><strong>${esc(tr('screening.earliestReview'))}: ${esc(new Intl.DateTimeFormat(state.locale,{dateStyle:'medium'}).format(new Date(`${profile.eligible_on}T00:00:00`)))}</strong><small>${esc((profile.deferral_reason_codes || []).map(code => statusLabel(code)).join(', '))}</small></div>` : ''}</div><button class="btn btn-secondary btn-sm" data-action="${review === 'PENDING' ? 'refresh-eligibility' : 'open-screening'}">${esc(tr(review === 'PENDING' ? 'common.refresh' : 'donor.precheckAction'))}</button></article><article class="journey-card ${qrReady ? 'complete' : ''}"><span class="journey-number">3</span><div><strong>${esc(tr('donor.stepPass'))}</strong><p>${esc(qrReady ? tr('donor.passReady') : tr('donor.passLocked'))}</p></div><button class="btn btn-secondary btn-sm" data-action="open-pass" ${qrReady ? '' : 'disabled'}>${esc(tr('donor.showPass'))}</button></article></div>
     <div class="grid grid-3"><section class="card span-2">${cardHeader('donor.upcomingRegistrations','donor.upcomingRegistrationsHelp',button('go-drives','common.browse','calendar','btn-ghost btn-sm'))}<div class="card-body activity-list">${upcoming.length ? upcoming.slice(0,5).map(item => `<div class="activity-item"><span class="activity-icon">${icon('calendar')}</span><span class="activity-copy"><strong>${esc(item.drive.name)}</strong><span>${esc(fmtDate(item.drive.starts_at))} · ${esc(item.drive.venue_name || item.drive.address)}</span></span>${statusBadge(item.status)}</div>`).join('') : emptyState('calendar','donor.noRegistrations','donor.noRegistrationsHelp',button('go-drives','common.findDrive','pin','btn-primary btn-sm'))}</div></section><aside class="stack"><article class="card">${cardHeader('donor.profileSummary','donor.profileSummaryHelp')}<div class="card-body profile-summary"><div><span>${esc(tr('common.reference'))}</span><strong>${esc(profile?.reference_code || tr('common.notSet'))}</strong></div><div><span>${esc(tr('common.name'))}</span><strong>${esc(profile?.full_name || tr('common.notSet'))}</strong></div><div><span>${esc(tr('common.bloodGroup'))}</span><strong>${esc(profile?.blood_type || tr('common.notSet'))}</strong></div><div><span>${esc(tr('common.city'))}</span><strong>${esc(profile?.city || tr('common.notSet'))}</strong></div></div></article><article class="card">${cardHeader('donor.liveNeeds','donor.liveNeedsHelp')}<div class="card-body"><strong class="big-count">${state.publicRequests.length}</strong><p class="muted">${esc(tr('donor.verifiedNeedsCount'))}</p><button class="btn btn-secondary" data-view="needs">${esc(tr('common.view'))}</button></div></article></aside></div>`;
@@ -365,15 +367,16 @@ function donorNearbyMap() {
   const pins = [
     ...state.publicDrives.map(item => ({ kind:'drive', latitude:Number(item.latitude), longitude:Number(item.longitude), label:`${item.name}${distanceText(item)}` })),
     ...state.publicCentres.map(item => ({ kind:'centre', latitude:Number(item.latitude), longitude:Number(item.longitude), label:`${item.name}${distanceText(item)}` })),
+    ...state.publicBanks.map(item => ({ kind:'bank', latitude:Number(item.latitude), longitude:Number(item.longitude), label:`${item.name} · ${item.city}, ${item.state}` })),
     ...state.publicRequests.map(item => ({ kind:'need', latitude:Number(item.latitude), longitude:Number(item.longitude), label:`${item.facility_name} · ${item.blood_type}${distanceText(item)}` }))
   ];
-  return miniMapMarkup({
+  return `${miniMapMarkup({
     id:'donor-nearby-map',
     center:{ latitude:state.profile.latitude, longitude:state.profile.longitude, label:state.profile.city },
     pins,
     title:tr('map.nearbyTitle'), subtitle:tr('map.nearbySubtitle'), emptyLabel:tr('map.empty'),
-    legend:{ drive:tr('map.drive'), centre:tr('map.centre'), need:tr('map.need') }
-  });
+    legend:{ drive:tr('map.drive'), centre:tr('map.centre'), bank:tr('map.bank'), need:tr('map.need') }
+  })}<p class="muted map-note">${esc(tr('map.bankNote'))}</p>`;
 }
 
 function donorDrives() {
@@ -421,7 +424,7 @@ function organizerOverview() {
 }
 
 function organizerDrives() {
-  return `${pageHeader('organizer.drivesTitle','organizer.drivesSubtitle',button('create-drive','organizer.createDrive','plus') + button('create-proposal','organizer.proposeDrive','mail','btn-secondary'))}<div class="stack">${state.drives.length ? state.drives.map(drive => `<article class="card drive-card"><div class="drive-main"><div class="drive-title-row"><h2>${esc(drive.name)}</h2>${statusBadge(drive.status)}</div><p>${esc(drive.venue_name || drive.address)}</p><p>${esc(fmtDate(drive.starts_at))} — ${esc(fmtDate(drive.ends_at))}</p><span class="badge badge-neutral">${esc(tr('common.target'))}: ${drive.target_units}</span></div><div class="drive-actions"><button class="btn btn-secondary btn-sm" data-action="select-drive-card" data-drive-id="${drive.id}">${esc(tr('common.manage'))}</button><button class="btn btn-secondary btn-sm" data-action="manage-quotas" data-drive-id="${drive.id}">${esc(tr('quota.manage'))}</button>${drive.status === 'APPROVED' ? `<button class="btn btn-primary btn-sm" data-action="drive-status" data-drive-id="${drive.id}" data-status="ACTIVE">${esc(tr('organizer.startDrive'))}</button>` : ''}${drive.status === 'ACTIVE' ? `<button class="btn btn-primary btn-sm" data-action="drive-status" data-drive-id="${drive.id}" data-status="COMPLETED">${esc(tr('organizer.completeDrive'))}</button>` : ''}</div></article>`).join('') : emptyState('calendar','organizer.noDrives','organizer.noDrivesHelp',button('create-drive','organizer.createDrive','plus'))}</div><section style="margin-top:22px">${cardHeader('venue.proposalsTitle','venue.proposalsSubtitle')}<div class="stack">${state.proposals.length ? state.proposals.map(proposal => `<article class="card compact-card"><div><strong>${esc(proposal.proposed_name)}</strong><p>${esc(proposal.venue_name)} · ${esc(proposal.host_email)}</p></div>${statusBadge(proposal.status)}</article>`).join('') : emptyState('mail','venue.noProposals','venue.noProposalsHelp')}</div></section>`;
+  return `${pageHeader('organizer.drivesTitle','organizer.drivesSubtitle',button('create-drive','organizer.createDrive','plus') + button('create-proposal','organizer.proposeDrive','mail','btn-secondary'))}<div class="stack">${state.drives.length ? state.drives.map(drive => `<article class="card drive-card"><div class="drive-main"><div class="drive-title-row"><h2>${esc(drive.name)}</h2>${statusBadge(drive.status)}</div><p>${esc(drive.venue_name || drive.address)}</p><p>${esc(fmtDate(drive.starts_at))} — ${esc(fmtDate(drive.ends_at))}</p><span class="badge badge-neutral">${esc(tr('common.target'))}: ${drive.target_units}</span></div>${drive.summary ? `<div class="drive-metrics"><span>${esc(tr('organizer.registrations'))}: ${drive.summary.registrations ?? 0}</span><span>${esc(tr('organizer.checkins'))}: ${drive.summary.checkins ?? 0}</span><span>${esc(tr('organizer.unitsLogged'))}: ${drive.summary.units_logged ?? 0}</span><span>${esc(tr('organizer.cleared'))}: ${drive.summary.cleared ?? 0}</span></div>` : ''}<div class="drive-actions"><button class="btn btn-secondary btn-sm" data-action="select-drive-card" data-drive-id="${drive.id}">${esc(tr('common.manage'))}</button><button class="btn btn-secondary btn-sm" data-action="select-drive-roster" data-drive-id="${drive.id}">${esc(tr('nav.roster'))}</button><button class="btn btn-secondary btn-sm" data-action="select-drive-report" data-drive-id="${drive.id}">${esc(tr('organizer.report'))}</button><button class="btn btn-secondary btn-sm" data-action="manage-quotas" data-drive-id="${drive.id}">${esc(tr('quota.manage'))}</button>${drive.status === 'APPROVED' ? `<button class="btn btn-primary btn-sm" data-action="drive-status" data-drive-id="${drive.id}" data-status="ACTIVE">${esc(tr('organizer.startDrive'))}</button>` : ''}${drive.status === 'ACTIVE' ? `<button class="btn btn-primary btn-sm" data-action="drive-status" data-drive-id="${drive.id}" data-status="COMPLETED">${esc(tr('organizer.completeDrive'))}</button>` : ''}</div></article>`).join('') : emptyState('calendar','organizer.noDrives','organizer.noDrivesHelp',button('create-drive','organizer.createDrive','plus'))}</div><section style="margin-top:22px">${cardHeader('venue.proposalsTitle','venue.proposalsSubtitle')}<div class="stack">${state.proposals.length ? state.proposals.map(proposal => `<article class="card compact-card"><div><strong>${esc(proposal.proposed_name)}</strong><p>${esc(proposal.venue_name)} · ${esc(proposal.host_email)}</p></div>${statusBadge(proposal.status)}</article>`).join('') : emptyState('mail','venue.noProposals','venue.noProposalsHelp')}</div></section>`;
 }
 
 function organizerCampaigns() {
@@ -433,7 +436,41 @@ function organizerCampaigns() {
 function organizerIntake() {
   const drive = activeDrive();
   const allowed = state.online && drive && ['APPROVED','ACTIVE'].includes(drive.status);
-  return `${pageHeader('intake.title','intake.subtitle',driveSelector())}<div class="scanner-layout"><section class="card card-pad"><div class="camera-view"><div class="scan-reticle"><span class="scan-line"></span></div><span class="camera-status">${icon('shield','icon-sm')} ${esc(tr('intake.cameraPrivacy'))}</span></div><div class="scan-actions"><button class="btn btn-primary" data-action="start-camera" ${allowed ? '' : 'disabled'}>${icon('camera','icon-sm')} ${esc(tr('intake.openCamera'))}</button><label class="btn btn-secondary file-button ${allowed ? '' : 'disabled'}">${icon('upload','icon-sm')} ${esc(tr('intake.scanPhoto'))}<input id="qr-image-input" type="file" accept="image/*" capture="environment" ${allowed ? '' : 'disabled'} hidden></label></div><div class="field" style="margin-top:18px"><label for="manual-reference">${esc(tr('intake.manualReference'))}</label><div class="input-action"><input class="input" id="manual-reference" placeholder="RF-1234ABCD"><button class="btn btn-secondary" data-action="manual-checkin" ${allowed ? '' : 'disabled'}>${esc(tr('intake.checkIn'))}</button></div></div>${!allowed ? `<div class="config-warning">${icon('alert','icon-sm')} ${esc(tr(state.online ? 'intake.approvedDriveRequired' : 'intake.onlineRequired'))}</div>` : ''}</section><aside class="card">${cardHeader('intake.donorCard','intake.donorCardHelp')}<div class="card-body">${state.intakeDonor ? `<div class="intake-person"><span class="avatar">${esc(state.intakeDonor.display_name.slice(0,2).toUpperCase())}</span><div><h2>${esc(state.intakeDonor.display_name)}</h2><p>${esc(state.intakeDonor.donor_reference)} · ${esc(state.intakeDonor.blood_type)}</p></div></div><div class="profile-summary"><div><span>${esc(tr('intake.precheck'))}</span><strong>${esc(statusLabel(state.intakeDonor.latest_screening_outcome))}</strong></div><div><span>${esc(tr('intake.clearance'))}</span><strong>${esc(statusLabel(state.intakeDonor.clearance_status))}</strong></div></div>${state.account.roles.includes('ROLE_HOSPITAL') || state.account.roles.includes('ROLE_SUPER_ADMIN') ? `<button class="btn btn-primary" data-action="clinical-assessment">${esc(tr('intake.assess'))}</button>` : ''}<button class="btn btn-secondary" data-action="record-donation" ${state.intakeDonor.clearance_status === 'CLEARED' ? '' : 'disabled'}>${esc(tr('intake.recordDonation'))}</button>` : emptyState('scan','intake.ready','intake.readyHelp')}</div></aside></div>`;
+  return `${pageHeader('intake.title','intake.subtitle',driveSelector())}<div class="scanner-layout"><section class="card card-pad"><div class="inline-scanner"><video id="qr-video" class="qr-video" playsinline muted></video><div class="scan-reticle"><span class="scan-line"></span></div><div class="scanner-status" id="scanner-status">${esc(tr('intake.cameraIdle'))}</div></div><div class="scan-actions"><button class="btn btn-primary" data-action="start-camera" ${allowed ? '' : 'disabled'}>${icon('camera','icon-sm')} ${esc(tr('intake.openCamera'))}</button><button class="btn btn-secondary" data-action="stop-camera" hidden>${esc(tr('common.stop'))}</button><label class="btn btn-secondary file-button ${allowed ? '' : 'disabled'}">${icon('upload','icon-sm')} ${esc(tr('intake.scanPhoto'))}<input id="qr-image-input" type="file" accept="image/*" capture="environment" ${allowed ? '' : 'disabled'} hidden></label></div><div class="field" style="margin-top:18px"><label for="manual-reference">${esc(tr('intake.manualReference'))}</label><div class="input-action"><input class="input" id="manual-reference" placeholder="RF-1234ABCD"><button class="btn btn-secondary" data-action="manual-checkin" ${allowed ? '' : 'disabled'}>${esc(tr('intake.checkIn'))}</button></div></div>${!allowed ? `<div class="config-warning">${icon('alert','icon-sm')} ${esc(tr(state.online ? 'intake.approvedDriveRequired' : 'intake.onlineRequired'))}</div>` : ''}</section><aside class="card">${cardHeader('intake.donorCard','intake.donorCardHelp')}<div class="card-body">${state.intakeDonor ? `<div class="intake-person"><span class="avatar">${esc(state.intakeDonor.display_name.slice(0,2).toUpperCase())}</span><div><h2>${esc(state.intakeDonor.display_name)}</h2><p>${esc(state.intakeDonor.donor_reference)} · ${esc(state.intakeDonor.blood_type)}</p></div></div><div class="profile-summary"><div><span>${esc(tr('intake.precheck'))}</span><strong>${esc(statusLabel(state.intakeDonor.latest_screening_outcome))}</strong></div><div><span>${esc(tr('intake.clearance'))}</span><strong>${esc(statusLabel(state.intakeDonor.clearance_status))}</strong></div></div>${state.intakeDonor.screening ? precheckSummaryMarkup(state.intakeDonor.screening) : ''}${state.account.roles.includes('ROLE_HOSPITAL') || state.account.roles.includes('ROLE_SUPER_ADMIN') ? `<button class="btn btn-primary" data-action="clinical-assessment">${esc(tr('intake.assess'))}</button>` : ''}<button class="btn btn-secondary" data-action="record-donation" ${state.intakeDonor.clearance_status === 'CLEARED' ? '' : 'disabled'}>${esc(tr('intake.recordDonation'))}</button>` : emptyState('scan','intake.ready','intake.readyHelp')}</div></aside></div>`;
+}
+
+const SCREENING_YES_FIELDS = [
+  ['fever_infection_or_antibiotics','screening.infection'],
+  ['medication_requires_review','screening.medication'],
+  ['heart_lung_kidney_liver_or_bleeding_condition','screening.conditions'],
+  ['surgery_transfusion_or_hospitalization_last_12_months','screening.procedure'],
+  ['tattoo_or_piercing_last_12_months','screening.tattoo'],
+  ['malaria_risk_travel_or_residence','screening.travel'],
+  ['pregnancy_breastfeeding_or_recent_delivery','screening.pregnancy'],
+  ['alcohol_within_24_hours','screening.alcohol24h'],
+  ['recent_immunization_14_days','screening.immunization14d']
+];
+const SCREENING_DATE_FIELDS = [
+  ['last_donation_date','screening.lastDonation'],
+  ['antibiotics_completed_date','screening.antibioticsCompleted'],
+  ['surgery_or_transfusion_date','screening.surgeryDate'],
+  ['tattoo_or_piercing_date','screening.tattooDate'],
+  ['malaria_risk_return_date','screening.travelReturnDate'],
+  ['delivery_or_pregnancy_end_date','screening.pregnancyEndDate']
+];
+
+function precheckSummaryMarkup(summary) {
+  if (!summary) return '';
+  const items = [];
+  if (summary.weight_kg != null) items.push({ label: tr('screening.weight'), value: `${summary.weight_kg} kg` });
+  for (const [key, labelKey] of SCREENING_YES_FIELDS) {
+    if (summary[key] === true) items.push({ label: tr(labelKey), value: tr('common.yes') });
+  }
+  for (const [key, labelKey] of SCREENING_DATE_FIELDS) {
+    if (summary[key]) items.push({ label: tr(labelKey), value: new Intl.DateTimeFormat(state.locale,{dateStyle:'medium'}).format(new Date(`${summary[key]}T00:00:00`)) });
+  }
+  const flags = summary.flags || [];
+  return `<div class="precheck-summary"><div class="precheck-summary-head">${icon('shield','icon-sm')} ${esc(tr('intake.precheckAnswers'))}</div>${items.length ? `<div class="precheck-answer-grid">${items.map(item => `<span><small>${esc(item.label)}</small><strong>${esc(item.value)}</strong></span>`).join('')}</div>` : `<small class="muted">${esc(tr('intake.noPrecheck'))}</small>`}${flags.length ? `<div class="flag-list">${flags.map(flag => `<span class="badge badge-amber">${esc(statusLabel(flag))}</span>`).join('')}</div>` : ''}</div>`;
 }
 
 function organizerRoster() {
@@ -455,11 +492,15 @@ function renderHospital() {
 
 function hospitalOverview() {
   const profile = state.hospitalProfile;
-  return `${pageHeader('hospital.overviewTitle','hospital.overviewSubtitle',profile ? button('refresh-hospital','common.refresh','refresh','btn-secondary') : button('apply-hospital','hospital.apply','hospital'))}${profile ? `<section class="card card-pad"><div class="drive-title-row"><div><span class="section-label">${esc(tr('hospital.facility'))}</span><h2>${esc(profile.facility_name)}</h2><p>${esc(profile.address)} · ${esc(profile.city)}, ${esc(profile.state)}</p></div>${statusBadge(profile.status)}</div>${profile.status !== 'VERIFIED' ? `<div class="config-warning">${icon('alert','icon-sm')} ${esc(tr('hospital.pendingNotice'))}</div>` : ''}<div class="evidence-row"><span>${icon('file','icon-sm')} ${state.hospitalDocuments.length} ${esc(tr('hospital.documentsStored'))}</span>${profile.status === 'PENDING' ? `<button class="btn btn-secondary btn-sm" data-action="upload-hospital-evidence" data-hospital-id="${profile.id}">${esc(tr('hospital.addEvidence'))}</button>` : ''}</div></section>` : `<section class="card">${emptyState('hospital','hospital.noApplication','hospital.noApplicationHelp',button('apply-hospital','hospital.apply','plus'))}</section>`}<div class="grid grid-3" style="margin-top:18px">${metric('shield',String(state.clinicalQueue.filter(item => item.review_status === 'PENDING').length),'hospital.pendingReviews')}${metric('inventory',String(state.components.filter(item => ['AVAILABLE','RESERVED'].includes(item.status)).length),'hospital.inventoryUnits')}${metric('file',String(state.hospitalRequests.filter(item => ['PENDING','VERIFIED'].includes(item.status)).length),'hospital.activeRequests')}</div>`;
+  let notice = '';
+  if (profile?.status === 'PENDING') notice = `<div class="config-warning">${icon('alert','icon-sm')} ${esc(tr('hospital.pendingNotice'))} <strong>${esc(tr('hospital.pendingHelp'))}</strong></div><div class="evidence-row"><span>${icon('file','icon-sm')} ${state.hospitalDocuments.length} ${esc(tr('hospital.documentsStored'))}</span>${profile.status === 'PENDING' ? `<button class="btn btn-secondary btn-sm" data-action="upload-hospital-evidence" data-hospital-id="${profile.id}">${esc(tr('hospital.addEvidence'))}</button>` : ''}</div>`;
+  if (profile?.status === 'REJECTED') notice = `<div class="config-warning">${icon('alert','icon-sm')} ${esc(tr('hospital.rejectedNotice'))}${profile.rejection_reason ? ` <strong>${esc(profile.rejection_reason)}</strong>` : ''}</div><button class="btn btn-primary" data-action="apply-hospital">${esc(tr('hospital.resubmit'))}</button>`;
+  if (profile?.status === 'VERIFIED') notice = `<div class="config-note">${icon('shield','icon-sm')} ${esc(tr('hospital.verifiedNotice'))}</div>`;
+  return `${pageHeader('hospital.overviewTitle','hospital.overviewSubtitle',profile ? button('refresh-hospital','common.refresh','refresh','btn-secondary') : button('apply-hospital','hospital.apply','hospital'))}${profile ? `<section class="card card-pad"><div class="drive-title-row"><div><span class="section-label">${esc(tr('hospital.facility'))}</span><h2>${esc(profile.facility_name)}</h2><p>${esc(profile.address)} · ${esc(profile.city)}, ${esc(profile.state)}</p></div>${statusBadge(profile.status)}</div>${notice}</section>` : `<section class="card">${emptyState('hospital','hospital.noApplication','hospital.noApplicationHelp',button('apply-hospital','hospital.apply','plus'))}</section>`}<div class="grid grid-3" style="margin-top:18px">${metric('shield',String(state.clinicalQueue.filter(item => item.review_status === 'PENDING').length),'hospital.pendingReviews')}${metric('inventory',String(state.components.filter(item => ['AVAILABLE','RESERVED'].includes(item.status)).length),'hospital.inventoryUnits')}${metric('file',String(state.hospitalRequests.filter(item => ['PENDING','VERIFIED'].includes(item.status)).length),'hospital.activeRequests')}</div>`;
 }
 
 function hospitalClinical() {
-  return `${pageHeader('clinical.title','clinical.subtitle',button('refresh-clinical','common.refresh','refresh','btn-secondary'))}<div class="stack">${state.clinicalQueue.length ? state.clinicalQueue.map(item => `<article class="card clinical-review-card"><div><div class="drive-title-row"><h2>${esc(tr('common.donor'))} · ${esc(item.donor_reference)}</h2>${statusBadge(item.review_status)}</div><p>${esc(tr('common.bloodGroup'))}: ${esc(item.blood_type)} · ${esc(tr('common.city'))}: ${esc(item.city || tr('common.none'))}</p><p>${esc(tr('clinical.precheckOutcome'))}: ${esc(statusLabel(item.outcome))}</p><div class="flag-list">${(item.flags || []).map(flag => `<span class="badge badge-amber">${esc(statusLabel(flag))}</span>`).join('') || `<span class="badge badge-green">${esc(tr('clinical.noFlags'))}</span>`}</div>${item.eligible_on ? `<div class="config-warning">${icon('calendar','icon-sm')} ${esc(tr('screening.earliestReview'))}: ${esc(item.eligible_on)} · ${esc((item.deferral_reason_codes || []).map(code => statusLabel(code)).join(', '))}</div>` : ''}<small>${esc(tr('common.expires'))}: ${esc(fmtDate(item.valid_until))}</small></div>${item.review_status === 'PENDING' ? `<div class="drive-actions"><button class="btn btn-primary" data-action="review-screening" data-screening-id="${item.screening_id}" data-decision="APPROVED">${esc(tr('clinical.approveQr'))}</button><button class="btn btn-secondary" data-action="review-screening" data-screening-id="${item.screening_id}" data-decision="DECLINED">${esc(tr('common.decline'))}</button></div>` : ''}</article>`).join('') : emptyState('shield','clinical.empty','clinical.emptyHelp')}</div>`;
+  return `${pageHeader('clinical.title','clinical.subtitle',button('refresh-clinical','common.refresh','refresh','btn-secondary'))}<div class="stack">${state.clinicalQueue.length ? state.clinicalQueue.map(item => `<article class="card clinical-review-card"><div><div class="drive-title-row"><h2>${esc(tr('common.donor'))} · ${esc(item.donor_reference)}</h2>${statusBadge(item.review_status)}</div><p>${esc(tr('common.bloodGroup'))}: ${esc(item.blood_type)} · ${esc(tr('common.city'))}: ${esc(item.city || tr('common.none'))}</p><p>${esc(tr('clinical.precheckOutcome'))}: ${esc(statusLabel(item.outcome))}</p><div class="flag-list">${(item.flags || []).map(flag => `<span class="badge badge-amber">${esc(statusLabel(flag))}</span>`).join('') || `<span class="badge badge-green">${esc(tr('clinical.noFlags'))}</span>`}</div>${item.screening ? precheckSummaryMarkup(item.screening) : ''}${item.eligible_on ? `<div class="config-warning">${icon('calendar','icon-sm')} ${esc(tr('screening.earliestReview'))}: ${esc(item.eligible_on)} · ${esc((item.deferral_reason_codes || []).map(code => statusLabel(code)).join(', '))}</div>` : ''}<small>${esc(tr('common.expires'))}: ${esc(fmtDate(item.valid_until))}</small></div>${item.review_status === 'PENDING' ? `<div class="drive-actions"><button class="btn btn-primary" data-action="review-screening" data-screening-id="${item.screening_id}" data-decision="APPROVED">${esc(tr('clinical.approveQr'))}</button><button class="btn btn-secondary" data-action="review-screening" data-screening-id="${item.screening_id}" data-decision="DECLINED">${esc(tr('common.decline'))}</button></div>` : ''}</article>`).join('') : emptyState('shield','clinical.empty','clinical.emptyHelp')}</div>`;
 }
 
 function hospitalInventory() {
@@ -611,14 +652,27 @@ function profileModal() {
 
 function screeningModal() {
   const question = (name, labelKey, _safeYes = false, optional = false) => `<fieldset class="screening-question screening-tap-question"><legend><strong>${esc(tr(labelKey))}</strong></legend><div class="binary-choice"><label><input type="radio" name="${name}" value="true" required><span>${esc(tr('common.yes'))}</span></label><label><input type="radio" name="${name}" value="false" required><span>${esc(tr('common.no'))}</span></label>${optional ? `<label><input type="radio" name="${name}" value="null" required><span>${esc(tr('common.notApplicable'))}</span></label>` : ''}</div></fieldset>`;
+  const dateField = (name, labelKey, dependsOn) => `<div class="field" data-date-for="${dependsOn}"><label>${esc(tr(labelKey))}</label><input class="input" name="${name}" type="date" data-required-when="${dependsOn}"><span class="field-hint">${esc(tr('screening.dateIfYes'))}</span></div>`;
   openModal({
     title: tr('screening.title'),
     subtitle: tr('screening.subtitle'),
     wide: true,
-    body: `<form id="screening-form" class="screening-form"><div class="screening-notice">${icon('shield')}<span><strong>${esc(tr('screening.noticeTitle'))}</strong><small>${esc(tr('screening.noticeBody'))}</small></span></div><section><div class="form-grid"><div class="field"><label>${esc(tr('screening.weight'))}</label><input class="input" name="weight_kg" type="number" min="25" max="250" step="0.1" required></div><div class="field"><label>${esc(tr('screening.lastDonation'))}</label><input class="input" name="last_donation_date" type="date"></div><div class="field"><label>${esc(tr('screening.antibioticsCompleted'))}</label><input class="input" name="antibiotics_completed_date" type="date"><span class="field-hint">${esc(tr('screening.dateIfApplicable'))}</span></div><div class="field"><label>${esc(tr('screening.surgeryDate'))}</label><input class="input" name="surgery_or_transfusion_date" type="date"><span class="field-hint">${esc(tr('screening.dateIfApplicable'))}</span></div><div class="field"><label>${esc(tr('screening.tattooDate'))}</label><input class="input" name="tattoo_or_piercing_date" type="date"><span class="field-hint">${esc(tr('screening.dateIfApplicable'))}</span></div><div class="field"><label>${esc(tr('screening.travelReturnDate'))}</label><input class="input" name="malaria_risk_return_date" type="date"><span class="field-hint">${esc(tr('screening.dateIfApplicable'))}</span></div><div class="field"><label>${esc(tr('screening.pregnancyEndDate'))}</label><input class="input" name="delivery_or_pregnancy_end_date" type="date"><span class="field-hint">${esc(tr('screening.dateIfApplicable'))}</span></div><div class="field full"><label>${esc(tr('screening.reviewFacility'))}</label><select class="select" name="review_hospital_id" required><option value="">${esc(tr('common.select'))}</option>${state.publicCentres.map(item => `<option value="${item.id}">${esc(item.name)} · ${esc(item.city)}${item.distance_km != null ? ` · ${esc(item.distance_km)} ${esc(tr('map.kilometres'))}` : ''}</option>`).join('')}</select><span class="field-hint">${esc(tr('screening.reviewFacilityHelp'))}</span></div></div></section><section><div class="question-list">${question('feeling_well_today','screening.feelingWell',true)}${question('fever_infection_or_antibiotics','screening.infection')}${question('medication_requires_review','screening.medication')}${question('heart_lung_kidney_liver_or_bleeding_condition','screening.conditions')}${question('surgery_transfusion_or_hospitalization_last_12_months','screening.procedure')}${question('tattoo_or_piercing_last_12_months','screening.tattoo')}${question('malaria_risk_travel_or_residence','screening.travel')}${question('pregnancy_breastfeeding_or_recent_delivery','screening.pregnancy',false,true)}</div></section><section class="attestation-block"><label><input type="checkbox" name="answers_are_truthful" required><span><strong>${esc(tr('screening.truth'))}</strong></span></label><label><input type="checkbox" name="consent_to_clinical_review" required><span><strong>${esc(tr('screening.reviewConsent'))}</strong></span></label><label><input type="checkbox" name="consent_to_selected_facility_review" required><span><strong>${esc(tr('screening.selectedFacilityConsent'))}</strong><small>${esc(tr('screening.selectedFacilityConsentHelp'))}</small></span></label></section></form>`,
-    footer: `<button class="btn btn-secondary" data-action="close-modal">${esc(tr('common.cancel'))}</button><button class="btn btn-primary" data-action="submit-screening">${esc(tr('screening.submit'))}</button>`
+    body: `<form id="screening-form" class="screening-form"><div class="screening-notice">${icon('shield')}<span><strong>${esc(tr('screening.noticeTitle'))}</strong><small>${esc(tr('screening.noticeBody'))}</small></span></div><section><div class="form-grid"><div class="field"><label>${esc(tr('screening.weight'))}</label><input class="input" name="weight_kg" type="number" min="25" max="250" step="0.1" required><span class="field-hint">${esc(tr('screening.weightHint'))}</span></div><div class="field"><label>${esc(tr('screening.lastDonation'))}</label><input class="input" name="last_donation_date" type="date"><span class="field-hint">${esc(tr('screening.dateIfYes'))}</span></div>${dateField('antibiotics_completed_date','screening.antibioticsCompleted','fever_infection_or_antibiotics')}${dateField('surgery_or_transfusion_date','screening.surgeryDate','surgery_transfusion_or_hospitalization_last_12_months')}${dateField('tattoo_or_piercing_date','screening.tattooDate','tattoo_or_piercing_last_12_months')}${dateField('malaria_risk_return_date','screening.travelReturnDate','malaria_risk_travel_or_residence')}${dateField('delivery_or_pregnancy_end_date','screening.pregnancyEndDate','pregnancy_breastfeeding_or_recent_delivery')}</div></section><section><div class="question-list">${question('feeling_well_today','screening.feelingWell',true)}${question('fever_infection_or_antibiotics','screening.infection')}${question('medication_requires_review','screening.medication')}${question('heart_lung_kidney_liver_or_bleeding_condition','screening.conditions')}${question('surgery_transfusion_or_hospitalization_last_12_months','screening.procedure')}${question('tattoo_or_piercing_last_12_months','screening.tattoo')}${question('malaria_risk_travel_or_residence','screening.travel')}${question('pregnancy_breastfeeding_or_recent_delivery','screening.pregnancy',false,true)}${question('alcohol_within_24_hours','screening.alcohol24h')}${question('recent_immunization_14_days','screening.immunization14d')}</div></section><section class="attestation-block"><p class="muted">${esc(tr('screening.reviewAssignmentHelp'))}</p><label><input type="checkbox" name="answers_are_truthful" required><span><strong>${esc(tr('screening.truth'))}</strong></span></label><label><input type="checkbox" name="consent_to_clinical_review" required><span><strong>${esc(tr('screening.reviewConsent'))}</strong></span></label></section></form>`,
+    footer: `<button class="btn btn-secondary" data-action="close-modal">${esc(tr('common.cancel'))}</button><button class="btn btn-primary" data-action="submit-screening">${esc(tr('screening.submit'))}</button>`,
+    onOpen: () => {
+      const form = document.querySelector('#screening-form');
+      form?.addEventListener('change', event => {
+        const radio = event.target.closest('input[type="radio"][name]');
+        if (!radio || !radio.checked) return;
+        const dateInput = form.querySelector(`input[data-required-when="${radio.name}"]`);
+        if (!dateInput) return;
+        dateInput.required = radio.value === 'true';
+        if (radio.value !== 'true') dateInput.value = '';
+      });
+    }
   });
 }
+
 
 function driveModal() {
   const start = new Date(Date.now() + 86400000); start.setMinutes(start.getMinutes() - start.getTimezoneOffset());
@@ -829,7 +883,7 @@ function reviewDecisionModal(screeningId, decision) {
 function assessmentModal() {
   openModal({
     title: tr('intake.assess'), subtitle: tr('intake.assessHelp'),
-    body: `<form id="assessment-form" class="form-grid"><div class="field"><label>${esc(tr('intake.decision'))}</label><select class="select" name="decision">${['CLEARED','DEFERRED'].map(value => `<option value="${value}">${esc(statusLabel(value))}</option>`).join('')}</select></div><div class="field"><label>${esc(tr('intake.reasonCodes'))}</label><input class="input" name="reason_codes" placeholder="LOW_HB, BP_REVIEW"></div><div class="field"><label>${esc(tr('intake.hemoglobin'))}</label><input class="input" name="hemoglobin_g_dl" type="number" step="0.1"></div><div class="field"><label>${esc(tr('intake.pulse'))}</label><input class="input" name="pulse_bpm" type="number"></div><div class="field"><label>${esc(tr('intake.systolic'))}</label><input class="input" name="systolic_bp" type="number"></div><div class="field"><label>${esc(tr('intake.diastolic'))}</label><input class="input" name="diastolic_bp" type="number"></div></form>`,
+    body: `<form id="assessment-form" class="form-grid"><div class="field"><label>${esc(tr('intake.decision'))}</label><select class="select" name="decision">${['CLEARED','DEFERRED'].map(value => `<option value="${value}">${esc(statusLabel(value))}</option>`).join('')}</select></div><div class="field"><label>${esc(tr('intake.reasonCodes'))}</label><input class="input" name="reason_codes" placeholder="LOW_HB, BP_REVIEW"></div><div class="field"><label>${esc(tr('intake.hemoglobin'))}</label><input class="input" name="hemoglobin_g_dl" type="number" min="2" max="25" step="0.1"></div><div class="field"><label>${esc(tr('intake.pulse'))}</label><input class="input" name="pulse_bpm" type="number" min="30" max="220"></div><div class="field"><label>${esc(tr('intake.systolic'))}</label><input class="input" name="systolic_bp" type="number" min="50" max="260"></div><div class="field"><label>${esc(tr('intake.diastolic'))}</label><input class="input" name="diastolic_bp" type="number" min="30" max="180"></div></form>`,
     footer: `<button class="btn btn-secondary" data-action="close-modal">${esc(tr('common.cancel'))}</button><button class="btn btn-primary" data-action="save-assessment">${esc(tr('common.save'))}</button>`
   });
 }
@@ -1173,24 +1227,27 @@ function parseAnswer(value) { return value === 'null' ? null : value === 'true';
 async function saveScreening() {
   const form = document.querySelector('#screening-form'); if (!form?.reportValidity()) return;
   const data = new FormData(form);
-  const names = ['feeling_well_today','fever_infection_or_antibiotics','medication_requires_review','heart_lung_kidney_liver_or_bleeding_condition','surgery_transfusion_or_hospitalization_last_12_months','tattoo_or_piercing_last_12_months','malaria_risk_travel_or_residence','pregnancy_breastfeeding_or_recent_delivery'];
+  const weight = Number(data.get('weight_kg'));
+  if (!Number.isFinite(weight) || weight < 25 || weight > 250) {
+    toast(tr('error.title'), tr('screening.weightHint'), 'warning'); return;
+  }
+  const names = ['feeling_well_today','fever_infection_or_antibiotics','medication_requires_review','heart_lung_kidney_liver_or_bleeding_condition','surgery_transfusion_or_hospitalization_last_12_months','tattoo_or_piercing_last_12_months','malaria_risk_travel_or_residence','pregnancy_breastfeeding_or_recent_delivery','alcohol_within_24_hours','recent_immunization_14_days'];
   const payload = {
-    questionnaire_version:'IN-PRECHECK-2026-01', weight_kg:Number(data.get('weight_kg')),
+    questionnaire_version:'IN-PRECHECK-2026-02', weight_kg:weight,
     last_donation_date:data.get('last_donation_date') || null,
     antibiotics_completed_date:data.get('antibiotics_completed_date') || null,
     surgery_or_transfusion_date:data.get('surgery_or_transfusion_date') || null,
     tattoo_or_piercing_date:data.get('tattoo_or_piercing_date') || null,
     malaria_risk_return_date:data.get('malaria_risk_return_date') || null,
     delivery_or_pregnancy_end_date:data.get('delivery_or_pregnancy_end_date') || null,
-    review_hospital_id:data.get('review_hospital_id'),
     answers_are_truthful:data.has('answers_are_truthful'),
-    consent_to_clinical_review:data.has('consent_to_clinical_review'),
-    consent_to_selected_facility_review:data.has('consent_to_selected_facility_review')
+    consent_to_clinical_review:data.has('consent_to_clinical_review')
   };
   names.forEach(name => payload[name] = parseAnswer(data.get(name)));
   try { await apiFetch('/donors/me/screenings', { method:'POST', body:JSON.stringify(payload) }); state.profile = await apiFetch('/donors/me/profile'); closeModal(); render(); toast(tr('success.title'), tr('success.screeningSubmitted')); }
   catch (error) { toast(tr('error.title'), friendlyError(error), 'warning'); }
 }
+
 
 async function saveDrive() {
   const form = document.querySelector('#drive-form'); if (!form?.reportValidity()) return;
@@ -1368,20 +1425,33 @@ async function saveRequest() {
 async function openPass() {
   try {
     state.profile = await apiFetch('/donors/me/profile');
-    const issued = await apiFetch('/donors/me/pass');
+    let issued = await apiFetch('/donors/me/pass');
     openModal({
       title: tr('donor.passTitle'), subtitle: tr('donor.passSafety'),
-      body: `<div class="qr-pass"><div class="qr-brand">${icon('activity','icon-sm')} RaktFlow</div><div class="qr-frame"><canvas id="donor-pass-canvas"></canvas></div><div class="rotating-code">${esc(issued.rotating_code.slice(0,3))} ${esc(issued.rotating_code.slice(3))}</div><div class="manual-pass-reference"><span>${esc(tr('donor.manualReference'))}</span><strong>${esc(state.profile?.reference_code || '')}</strong></div><div class="secure-note">${icon('lock','icon-sm')} ${esc(tr('donor.qrOpaque'))}</div></div>`,
+      body: `<div class="qr-pass"><div class="qr-brand">${icon('activity','icon-sm')} RaktFlow <span class="live-indicator"><i></i>${esc(tr('pass.live'))}</span></div><div class="qr-frame live"><canvas id="donor-pass-canvas"></canvas><div class="qr-countdown">${esc(tr('pass.validFor'))} —</div></div><div class="rotating-code">${esc(issued.rotating_code.slice(0,3))} ${esc(issued.rotating_code.slice(3))}</div><div class="manual-pass-reference"><span>${esc(tr('donor.manualReference'))}</span><strong>${esc(state.profile?.reference_code || '')}</strong></div><div class="secure-note">${icon('lock','icon-sm')} ${esc(tr('donor.qrOpaque'))}</div></div>`,
       footer: `<button class="btn btn-secondary" data-action="close-modal">${esc(tr('common.close'))}</button>`,
       onOpen: () => {
         let stopped = false;
+        let nextRefreshAt = 0;
+        const canvas = () => document.querySelector('#donor-pass-canvas');
+        const countdown = () => document.querySelector('.qr-countdown');
         const draw = async payload => {
-          const canvas = document.querySelector('#donor-pass-canvas');
-          if (!canvas || stopped) return;
-          await QRCode.toCanvas(canvas, payload.token, { width:240, margin:1, errorCorrectionLevel:'H', color:{dark:'#0f172a',light:'#ffffff'} });
+          const node = canvas(); if (!node || stopped) return;
+          node.width = 480; node.height = 480;
+          await QRCode.toCanvas(node, payload.token, { width:480, margin:2, errorCorrectionLevel:'M', color:{dark:'#0f172a',light:'#ffffff'} });
+          nextRefreshAt = new Date(payload.expires_at).getTime() - 20000;
+          issued = payload;
+        };
+        const tick = async () => {
+          if (stopped) return;
+          const remaining = Math.max(0, Math.floor((new Date(issued.expires_at).getTime() - Date.now()) / 1000));
+          const label = countdown(); if (label) label.textContent = `${tr('pass.validFor')} ${remaining}s`;
+          if (Date.now() >= nextRefreshAt) {
+            try { await draw(await apiFetch('/donors/me/pass')); } catch { /* previous token still accepted */ }
+          }
         };
         draw(issued);
-        const timer = setInterval(async () => { try { await draw(await apiFetch('/donors/me/pass')); } catch { /* current token expires safely */ } }, 25000);
+        const timer = setInterval(tick, 1000);
         return () => { stopped = true; clearInterval(timer); };
       }
     });
@@ -1396,12 +1466,38 @@ async function registerDrive(driveId, campaignId = null) {
   } catch (error) { toast(tr('error.title'), friendlyError(error), 'warning'); }
 }
 
-async function processQrToken(token) {
-  if (!state.activeDriveId) { toast(tr('error.title'), tr('intake.selectDrive'), 'warning'); return; }
+async function processQrToken(token, opts = {}) {
+  if (!state.activeDriveId) { toast(tr('error.title'), tr('intake.selectDrive'), 'warning'); return false; }
   try {
     state.intakeDonor = await apiFetch('/intake/scan', { method:'POST', body:JSON.stringify({ drive_id:state.activeDriveId, pass_token:token, idempotency_key:crypto.randomUUID() }) });
-    closeModal(); await loadActiveDriveData(); render(); toast(tr('success.title'), tr('success.checkedIn'));
-  } catch (error) { toast(tr('error.title'), friendlyError(error), 'warning'); }
+    stopInlineScanner(); await loadActiveDriveData(); render(); toast(tr('success.title'), tr('success.checkedIn'));
+    return true;
+  } catch (error) {
+    const message = friendlyError(error);
+    if (!opts.fromScanner) toast(tr('error.title'), message, 'warning');
+    else setScannerStatus(message, true);
+    return false;
+  }
+}
+
+let inlineScannerCleanup = null;
+
+function setScannerStatus(message, error = false) {
+  const status = document.querySelector('#scanner-status');
+  if (!status) return;
+  status.textContent = message;
+  status.classList.toggle('error', error);
+}
+
+function stopInlineScanner() {
+  inlineScannerCleanup?.(); inlineScannerCleanup = null;
+  const video = document.querySelector('#qr-video');
+  if (video) video.srcObject = null;
+  const startBtn = document.querySelector('[data-action="start-camera"]');
+  const stopBtn = document.querySelector('[data-action="stop-camera"]');
+  if (startBtn) startBtn.hidden = false;
+  if (stopBtn) stopBtn.hidden = true;
+  setScannerStatus(tr('intake.cameraIdle'));
 }
 
 async function startCamera() {
@@ -1409,22 +1505,27 @@ async function startCamera() {
   let stream;
   try { stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:'environment' } }, audio:false }); }
   catch (error) { console.warn(error); toast(tr('error.title'), tr('intake.cameraPermission'), 'warning'); return; }
-  const { BrowserQRCodeReader } = await import('@zxing/browser');
-  openModal({
-    title: tr('intake.openCamera'), subtitle: tr('intake.cameraPrivacy'),
-    body: `<video id="qr-video" class="qr-video" playsinline muted></video><p class="muted">${esc(tr('intake.holdQr'))}</p>`,
-    footer: `<button class="btn btn-secondary" data-action="close-modal">${esc(tr('common.cancel'))}</button>`,
-    onOpen: () => {
-      const video = document.querySelector('#qr-video');
-      video.srcObject = stream; video.play().catch(() => null);
-      const reader = new BrowserQRCodeReader();
-      let controls; let done = false;
-      reader.decodeFromStream(stream, video, result => {
-        if (result && !done) { done = true; controls?.stop(); stream.getTracks().forEach(track => track.stop()); processQrToken(result.getText()); }
-      }).then(value => { controls = value; }).catch(error => { console.warn(error); toast(tr('error.title'), tr('intake.noQrFound'), 'warning'); });
-      return () => { done = true; controls?.stop(); stream.getTracks().forEach(track => track.stop()); reader.reset?.(); };
-    }
-  });
+  const video = document.querySelector('#qr-video');
+  if (!video) { stream.getTracks().forEach(track => track.stop()); return; }
+  const startBtn = document.querySelector('[data-action="start-camera"]');
+  const stopBtn = document.querySelector('[data-action="stop-camera"]');
+  if (startBtn) startBtn.hidden = true;
+  if (stopBtn) stopBtn.hidden = false;
+  video.srcObject = stream; video.play().catch(() => null);
+  setScannerStatus(tr('intake.holdQr'));
+  const { BrowserQRCodeReader, DecodeHintType } = await import('@zxing/browser');
+  const reader = new BrowserQRCodeReader(new Map([[DecodeHintType.TRY_HARDER, true]]), { delayBetweenScanAttempts: 250 });
+  let done = false;
+  try {
+    const controls = await reader.decodeFromStream(stream, video, async result => {
+      if (!result || done) return;
+      setScannerStatus(tr('intake.codeFound'));
+      const accepted = await processQrToken(result.getText(), { fromScanner:true });
+      if (accepted) { done = true; stopInlineScanner(); }
+      else { setScannerStatus(tr('intake.scanRetry'), true); }
+    });
+    inlineScannerCleanup = () => { done = true; controls.stop(); stream.getTracks().forEach(track => track.stop()); };
+  } catch (error) { console.warn(error); setScannerStatus(tr('intake.noQrFound'), true); stopInlineScanner(); }
 }
 
 async function scanQrImage(file) {
@@ -1432,7 +1533,8 @@ async function scanQrImage(file) {
   const { BrowserQRCodeReader } = await import('@zxing/browser');
   const url = URL.createObjectURL(file);
   try {
-    const result = await new BrowserQRCodeReader().decodeFromImageUrl(url);
+    const { DecodeHintType } = await import('@zxing/browser');
+    const result = await new BrowserQRCodeReader(new Map([[DecodeHintType.TRY_HARDER, true]])).decodeFromImageUrl(url);
     await processQrToken(result.getText());
   } catch (error) { console.warn(error); toast(tr('error.title'), tr('intake.noQrFound'), 'warning'); }
   finally { URL.revokeObjectURL(url); }
@@ -1654,6 +1756,9 @@ app.addEventListener('click', async event => {
   if (action === 'download-poster') return downloadPoster(target.dataset.campaignId);
   if (action === 'email-campaign') return campaignEmailModal(target.dataset.campaignId);
   if (action === 'select-drive-card') { state.activeDriveId=target.dataset.driveId; state.view='overview'; await loadActiveDriveData(); render(); return; }
+  if (action === 'select-drive-roster') { state.activeDriveId=target.dataset.driveId; state.view='roster'; await loadActiveDriveData(); render(); return; }
+  if (action === 'select-drive-report') { state.activeDriveId=target.dataset.driveId; state.view='reconcile'; await loadActiveDriveData(); render(); return; }
+  if (action === 'stop-camera') { stopInlineScanner(); return; }
   if (action === 'drive-status') return updateDriveStatus(target.dataset.driveId, target.dataset.status);
   if (action === 'start-camera') return startCamera();
   if (action === 'manual-checkin') return manualCheckin();

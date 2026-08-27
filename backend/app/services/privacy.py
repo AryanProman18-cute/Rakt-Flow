@@ -44,6 +44,9 @@ class PrivacyVault:
         canonical = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
         return self.encrypt_bytes(canonical, context=context)
 
+    def decrypt_json(self, envelope: bytes, *, context: str) -> dict[str, Any]:
+        return json.loads(self.decrypt_bytes(envelope, context=context).decode())
+
     def keyed_hash(self, normalized_value: str) -> bytes:
         return hmac.new(self.hash_pepper, normalized_value.encode(), hashlib.sha256).digest()
 
