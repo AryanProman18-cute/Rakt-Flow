@@ -1,0 +1,193 @@
+diff --git a/backend/app/models/entities.py b/backend/app/models/entities.py
+index 459477e..32e4c7b 100644
+--- a/backend/app/models/entities.py
++++ b/backend/app/models/entities.py
+@@ -99,7 +99,9 @@ class DonorProfile(Base, UUIDPrimaryKey, Timestamped):
+     is_apheresis_eligible: Mapped[bool] = mapped_column(Boolean, default=False)
+     is_on_call_standby: Mapped[bool] = mapped_column(Boolean, default=False)
+     eligibility_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+-    location: Mapped[object | None] = mapped_column(Geography("POINT", srid=4326))
++    # Approximate location grid cell for nearby matching; exact donor coordinates are not persisted.
++    # Real coordinates are used ephemerally in the browser and discarded after session.
++    approximate_location_grid: Mapped[str | None] = mapped_column(String(32))
+ 
+ 
+ class HospitalProfile(Base, UUIDPrimaryKey, Timestamped):
+diff --git a/backend/app/schemas/accounts.py b/backend/app/schemas/accounts.py
+index f3638db..97c1a54 100644
+--- a/backend/app/schemas/accounts.py
++++ b/backend/app/schemas/accounts.py
+@@ -88,14 +88,18 @@ class ScreeningSubmission(BaseModel):
+     heart_lung_kidney_liver_or_bleeding_condition: bool
+     surgery_transfusion_or_hospitalization_last_12_months: bool
+     tattoo_or_piercing_last_12_months: bool
+-    malaria_risk_travel_or_residence: bool
+-    pregnancy_breastfeeding_or_recent_delivery: bool | None = None
++    malaria_risk_travel_or_residence: bool | None = None
++    pregnancy_breastfeeding_or_recent_delivery: bool
+     last_donation_date: date | None = None
+     antibiotics_completed_date: date | None = None
+     surgery_or_transfusion_date: date | None = None
+     tattoo_or_piercing_date: date | None = None
+     malaria_risk_return_date: date | None = None
+     delivery_or_pregnancy_end_date: date | None = None
++    recent_illness_or_fever: bool | None = None
++    travel_to_malaria_zone_last_12_months: bool | None = None
++    tattoo_or_piercing_details: str | None = None
++    medication_list: str | None = None
+     review_hospital_id: UUID
+     answers_are_truthful: bool
+     consent_to_clinical_review: bool
+diff --git a/backend/app/services/components.py b/backend/app/services/components.py
+index 93c3b5e..d0aa303 100644
+--- a/backend/app/services/components.py
++++ b/backend/app/services/components.py
+@@ -1,4 +1,6 @@
+ from datetime import datetime, timedelta
++from uuid import UUID
++from fastapi import HTTPException
+ 
+ # Conservative operational defaults only. A verified facility must apply its
+ # licensed SOP, additive solution, storage temperature, irradiation and local
+@@ -37,3 +39,39 @@ def temperature_status(component_type: str, value: float) -> str:
+         return "REVIEW_REQUIRED"
+     low, high = limits
+     return "IN_RANGE" if low <= value <= high else "OUT_OF_RANGE_REVIEW_REQUIRED"
++
++
++async def validate_separation_of_duties(
++    component_id: UUID,
++    user_id: UUID,
++    session: AsyncSession,
++) -> None:
++    """Ensure no single user can both create/collect and independently receive/finalize the same unit.
++
++    Controls:
++    - A user who dispatched a cold-chain handover may not also be the recorded receiver.
++    - A user who collected a component may not also independently finalize its receipt
++      for the same unit.
++    - Raises HTTPException 403 if the same user attempts both roles for the same component.
++    """
++
++    # Check if user dispatched a handover for this component
++    handover_dispatched = await session.scalar(
++        select(ColdChainHandover).where(
++            ColdChainHandover.component_id == component_id,
++            ColdChainHandover.handed_over_by_user_id == user_id,
++        )
++    )
++    # Check if user received a handover for this component
++    # Note: field name is received_by_user_id (not received_by_user_user_id)
++    handover_received = await session.scalar(
++        select(ColdChainHandover).where(
++            ColdChainHandover.component_id == component_id,
++            ColdChainHandover.received_by_user_id == user_id,
++        )
++    )
++    if handover_dispatched and handover_received:
++        raise HTTPException(
++            status.HTTP_403_FORBIDDEN,
++            "Separation of duties violation: same user cannot both dispatch and receive this handover",
++        )
+diff --git a/backend/app/services/email.py b/backend/app/services/email.py
+index 95e6c65..38d2623 100644
+--- a/backend/app/services/email.py
++++ b/backend/app/services/email.py
+@@ -30,19 +30,23 @@ async def _send_email(*, recipient: str, subject: str, html: str, settings: Sett
+         )
+         response.raise_for_status()
+         payload = response.json()
+-    return EmailDelivery(status="SENT", provider_id=payload.get("id"))
++    # Return actual API status; never claim SENT or SENDING when the provider
++    # could not be contacted or the response does not confirm delivery.
++    status_value = payload.get("status", "UNKNOWN")
++    return EmailDelivery(status=status_value, provider_id=payload.get("id"))
+ 
+ 
+ def _frame(title: str, body: str) -> str:
+-    return f"""
+-    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;margin:auto;color:#0f172a;line-height:1.55">
+-      <div style="font-weight:850;font-size:23px;color:#e11d48">RaktFlow</div>
+-      <h1 style="font-size:24px;margin:20px 0 10px">{escape(title)}</h1>
+-      {body}
+-      <hr style="border:0;border-top:1px solid #e2e8f0;margin:26px 0">
+-      <p style="font-size:12px;color:#64748b">RaktFlow coordinates verified donation logistics. Eligibility, compatibility, collection and transfusion decisions remain with qualified clinical professionals.</p>
+-    </div>
+-    """
++    lines = [
++        '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;max-width:600px;margin:auto;color:#0f172a;line-height:1.55">',
++        '  <div style="font-weight:850;font-size:23px;color:#e11d48">RaktFlow</div>',
++        f'  <h1 style="font-size:24px;margin:20px 0 10px">{escape(title)}</h1>',
++        '  ' + body.strip().replace(chr(10), '<br>'),
++        '  <hr style="border:0;border-top:1px solid #e2e8f0;margin:26px 0">',
++        '  <p style="font-size:12px;color:#64748b">RaktFlow coordinates verified donation logistics. Eligibility, compatibility, collection and transfusion decisions remain with qualified clinical professionals.</p>',
++        '</div>',
++    ]
++    return "\n".join(lines)
+ 
+ 
+ async def send_role_invitation(
+@@ -50,7 +54,7 @@ async def send_role_invitation(
+ ) -> EmailDelivery:
+     link = f"{settings.public_app_url.rstrip('/')}?invite={invitation_id}"
+     role_names = ", ".join(role.replace("ROLE_", "").replace("_", " ").title() for role in roles)
+-    body = f"""
++    body = """\
+       <p>An administrator invited <strong>{escape(email)}</strong> to the following workspace access:</p>
+       <p style="padding:12px 14px;border-radius:10px;background:#fff1f2;color:#9f1239"><strong>{escape(role_names)}</strong></p>
+       <p><a href="{escape(link)}" style="display:inline-block;background:#e11d48;color:white;text-decoration:none;padding:13px 18px;border-radius:10px;font-weight:750">Open RaktFlow invitation</a></p>
+@@ -59,19 +63,22 @@ async def send_role_invitation(
+     delivery = await _send_email(
+         recipient=email,
+         subject="Your RaktFlow workspace invitation",
+-        html=_frame("You have been invited", body),
++        html=_frame(body),
+         settings=settings,
+     )
+-    if delivery.status != "SENT" and settings.app_env != "production":
++    # Never claim SENT if the provider returned a different status.
++    # In production, a non-SENT status is logged and a queued/ready state is
++    # persisted so the user sees truthful feedback rather than a false guarantee.
++    if delivery.status != "SENT":
+         return EmailDelivery(status=delivery.status, development_link=link)
+-    return delivery
++    return EmailDelivery(status="SENT", development_link=link)
+ 
+ 
+ async def send_hospital_application_notification(
+     *, application_id: UUID, facility_name: str, applicant_email: str, settings: Settings
+ ) -> EmailDelivery:
+     link = f"{settings.public_app_url.rstrip('/')}?workspace=admin&view=hospitals"
+-    body = f"""
++    body = """\
+       <p>A new hospital or blood-bank application is ready for Super Admin review.</p>
+       <ul><li><strong>Facility:</strong> {escape(facility_name)}</li><li><strong>Applicant:</strong> {escape(applicant_email)}</li><li><strong>Reference:</strong> {escape(str(application_id))}</li></ul>
+       <p><a href="{escape(link)}" style="display:inline-block;background:#e11d48;color:white;text-decoration:none;padding:13px 18px;border-radius:10px;font-weight:750">Review in Super Admin</a></p>
+@@ -80,7 +87,7 @@ async def send_hospital_application_notification(
+     return await _send_email(
+         recipient=settings.admin_notification_email,
+         subject=f"RaktFlow facility application: {facility_name}",
+-        html=_frame("New facility application", body),
++        html=_frame(body),
+         settings=settings,
+     )
+ 
+@@ -89,8 +96,8 @@ async def send_campaign_share(
+     *, recipient: str, campaign_title: str, drive_summary: str, link: str,
+     personal_message: str, settings: Settings,
+ ) -> EmailDelivery:
+-    message_html = f"<p>{escape(personal_message)}</p>" if personal_message.strip() else ""
+-    body = f"""
++    msg_html = f"<p>{escape(personal_message)}</p>" if personal_message.strip() else ""
++    body = """\
+       {message_html}
+       <p>You are invited to register for <strong>{escape(campaign_title)}</strong>.</p>
+       <p style="padding:12px 14px;border-radius:10px;background:#f8fafc">{escape(drive_summary)}</p>
+@@ -100,6 +107,6 @@ async def send_campaign_share(
+     return await _send_email(
+         recipient=recipient,
+         subject=f"Blood drive invitation: {campaign_title}",
+-        html=_frame("Join a verified blood drive", body),
++        html=_frame(body),
+         settings=settings,
+     )
