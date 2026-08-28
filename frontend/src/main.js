@@ -7,7 +7,7 @@ import './logistics.css';
 import QRCode from 'qrcode';
 import { BLOOD_BANK_CENTRES } from './public/blood-banks.js';
 
-import { apiDownload, apiFetch, configuredApiOrigin, isApiConfigured, pingApi, prewarmApi, publicApiFetch } from './api.js';
+import { apiDownload, apiFetch, configuredApiOrigin, isApiConfigured, pingApi, prewarmApi, publicApiFetch, waitForApi } from './api.js';
 import {
   authErrorMessage,
   completeGoogleRedirect,
@@ -217,6 +217,29 @@ function friendlyError(error) {
   if (message.includes('email')) return tr('error.email');
   if (Number(error?.status) >= 400 && Number(error?.status) < 500 && error?.message) return error.message;
   return tr('error.generic');
+}
+
+/**
+ * Run a backend write, waiting for a sleeping API first and retrying exactly
+ * once if the connection is dropped while waking. Non-network errors bubble up
+ * so callers keep their own specific handling.
+ */
+async function withBackendReady(fn) {
+  if (!(await pingApi(6000))) {
+    toast(tr('error.title'), tr('error.backendWaking'), 'warning');
+    await waitForApi();
+  }
+  try {
+    return await fn();
+  } catch (error) {
+    const raw = String(error?.message || '');
+    if (/could not reach|cors|timed out/i.test(raw)) {
+      toast(tr('error.title'), tr('error.backendWaking'), 'warning');
+      await waitForApi();
+      return await fn();
+    }
+    throw error;
+  }
 }
 
 function toast(title, message, type = 'success') {
@@ -1299,23 +1322,39 @@ async function saveScreening() {
     const dependsOn = SCREENING_DATE_DEPENDS_ON[dateName];
     if (payload[dependsOn] !== true) payload[dateName] = null;
   }
-  try { await apiFetch('/donors/me/screenings', { method:'POST', body:JSON.stringify(payload) }); state.profile = await apiFetch('/donors/me/profile'); closeModal(); render(); toast(tr('success.title'), tr('success.screeningSubmitted')); }
-  catch (error) {
-    // The current questionnaire (v02) is rejected by an older backend: the
-    // server still demands review_hospital_id / the removed consent. Tell the
-    // operator exactly that instead of showing raw field errors.
-    const raw = String(error?.message || '');
-    if (/review_hospital_id|consent_to_selected_facility_review|IN-PRECHECK-2026-01/i.test(raw)) {
-      toast(tr('error.title'), tr('error.outdatedApi'), 'warning'); return;
+  // A sleeping free-tier API drops the first connection. Wait for it, then
+  // submit; if the submit still fails on a network drop after the API is up,
+  // retry exactly once — the user should never have to tap twice.
+  let submitted = false;
+  for (let attempt = 1; attempt <= 2 && !submitted; attempt += 1) {
+    if (!(await pingApi(6000))) {
+      toast(tr('error.title'), tr('error.backendWaking'), 'warning');
+      await waitForApi();
     }
-    // A dropped first connection (sleeping API) is almost always transient:
-    // probe once so the message says "retry now" instead of "check Render/CORS".
-    if (/could not reach|cors|timed out/i.test(raw)) {
-      const alive = await pingApi(12000);
-      toast(tr('error.title'), tr(alive ? 'error.backendWaking' : 'error.backendConnection'), 'warning');
-      return;
+    try {
+      await apiFetch('/donors/me/screenings', { method: 'POST', body: JSON.stringify(payload) });
+      submitted = true;
+    } catch (error) {
+      const raw = String(error?.message || '');
+      if (/review_hospital_id|consent_to_selected_facility_review|IN-PRECHECK-2026-01/i.test(raw)) {
+        toast(tr('error.title'), tr('error.outdatedApi'), 'warning'); return;
+      }
+      if (/could not reach|cors|timed out/i.test(raw) && attempt === 1) {
+        toast(tr('error.title'), tr('error.backendWaking'), 'warning');
+        await waitForApi();
+        continue;
+      }
+      if (/could not reach|cors|timed out/i.test(raw)) {
+        const alive = await pingApi(12000);
+        toast(tr('error.title'), tr(alive ? 'error.backendWaking' : 'error.backendConnection'), 'warning');
+        return;
+      }
+      toast(tr('error.title'), friendlyError(error), 'warning'); return;
     }
-    toast(tr('error.title'), friendlyError(error), 'warning');
+  }
+  if (submitted) {
+    state.profile = await apiFetch('/donors/me/profile').catch(() => state.profile);
+    closeModal(); render(); toast(tr('success.title'), tr('success.screeningSubmitted'));
   }
 }
 
@@ -1643,7 +1682,7 @@ async function manualCheckin() {
   const donorReference = document.querySelector('#manual-reference')?.value.trim().toUpperCase();
   if (!donorReference) return;
   try {
-    state.intakeDonor = await apiFetch('/intake/manual', { method:'POST', body:JSON.stringify({ drive_id:state.activeDriveId, donor_reference:donorReference, idempotency_key:crypto.randomUUID() }) });
+    state.intakeDonor = await withBackendReady(() => apiFetch('/intake/manual', { method:'POST', body:JSON.stringify({ drive_id:state.activeDriveId, donor_reference:donorReference, idempotency_key:crypto.randomUUID() }) }));
     await loadActiveDriveData(); render(); toast(tr('success.title'), tr('success.checkedIn'));
   } catch (error) { toast(tr('error.title'), friendlyError(error), 'warning'); }
 }
@@ -1652,7 +1691,7 @@ async function saveAssessment() {
   const form = document.querySelector('#assessment-form'); if (!form?.reportValidity()) return;
   const data = new FormData(form); const num = name => data.get(name) ? Number(data.get(name)) : null;
   const payload = { decision:data.get('decision'), reason_codes:String(data.get('reason_codes') || '').split(',').map(value => value.trim()).filter(Boolean), hemoglobin_g_dl:num('hemoglobin_g_dl'), pulse_bpm:num('pulse_bpm'), systolic_bp:num('systolic_bp'), diastolic_bp:num('diastolic_bp') };
-  try { await apiFetch(`/intake/${state.intakeDonor.checkin_id}/assessment`, { method:'POST', body:JSON.stringify(payload) }); state.intakeDonor.clearance_status = payload.decision; closeModal(); await loadActiveDriveData(); render(); toast(tr('success.title'), tr('success.assessmentSaved')); }
+  try { await withBackendReady(() => apiFetch(`/intake/${state.intakeDonor.checkin_id}/assessment`, { method:'POST', body:JSON.stringify(payload) })); state.intakeDonor.clearance_status = payload.decision; closeModal(); await loadActiveDriveData(); render(); toast(tr('success.title'), tr('success.assessmentSaved')); }
   catch (error) { toast(tr('error.title'), friendlyError(error), 'warning'); }
 }
 
@@ -1660,13 +1699,13 @@ async function saveDonation() {
   const form = document.querySelector('#donation-form'); if (!form?.reportValidity()) return;
   const data = new FormData(form);
   const payload = { unit_reference:data.get('unit_reference'), component_type:data.get('component_type'), blood_type_at_collection:data.get('blood_type_at_collection'), volume_ml:Number(data.get('volume_ml')), collected_at:new Date().toISOString() };
-  try { await apiFetch(`/intake/${state.intakeDonor.checkin_id}/donation`, { method:'POST', body:JSON.stringify(payload) }); closeModal(); await loadActiveDriveData(); render(); toast(tr('success.title'), tr('success.donationSaved')); }
+  try { await withBackendReady(() => apiFetch(`/intake/${state.intakeDonor.checkin_id}/donation`, { method:'POST', body:JSON.stringify(payload) })); closeModal(); await loadActiveDriveData(); render(); toast(tr('success.title'), tr('success.donationSaved')); }
   catch (error) { toast(tr('error.title'), friendlyError(error), 'warning'); }
 }
 
 async function saveReview() {
   const form = document.querySelector('#review-form'); if (!form?.reportValidity()) return;
-  try { await apiFetch(`/clinical/screenings/${form.dataset.screeningId}/decision`, { method:'POST', body:JSON.stringify({ decision:form.dataset.decision, note:new FormData(form).get('note') }) }); closeModal(); state.clinicalQueue = await apiFetch('/clinical/screenings?review_status=ALL'); render(); toast(tr('success.title'), tr('success.reviewSaved')); }
+  try { await withBackendReady(() => apiFetch(`/clinical/screenings/${form.dataset.screeningId}/decision`, { method:'POST', body:JSON.stringify({ decision:form.dataset.decision, note:new FormData(form).get('note') }) })); closeModal(); state.clinicalQueue = await apiFetch('/clinical/screenings?review_status=ALL'); render(); toast(tr('success.title'), tr('success.reviewSaved')); }
   catch (error) { toast(tr('error.title'), friendlyError(error), 'warning'); }
 }
 
@@ -1708,7 +1747,7 @@ async function decideHospital(id, decision) {
 }
 
 async function updateDriveStatus(id, nextStatus) {
-  try { await apiFetch(`/drives/${id}/status`, { method:'PATCH', body:JSON.stringify({ status:nextStatus }) }); state.drives = await apiFetch('/drives/mine'); state.activeDriveId = id; await loadActiveDriveData(); render(); toast(tr('success.title'), tr('success.driveUpdated')); }
+  try { await withBackendReady(() => apiFetch(`/drives/${id}/status`, { method:'PATCH', body:JSON.stringify({ status:nextStatus }) })); state.drives = await apiFetch('/drives/mine'); state.activeDriveId = id; await loadActiveDriveData(); render(); toast(tr('success.title'), tr('success.driveUpdated')); }
   catch (error) { toast(tr('error.title'), friendlyError(error), 'warning'); }
 }
 

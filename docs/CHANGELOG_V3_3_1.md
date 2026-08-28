@@ -187,3 +187,19 @@ after idle is dropped, and the app showed the misleading "Check Render and CORS"
   `render.yaml` now ships with `autoDeploy: true` (Render rebuilds on every push to main —
   one final manual "Deploy latest commit" applies the blueprint change).
 - Guide: `docs/DEPLOY_UNPACK_FIX_2026_08_28.md` (corrected unpack.yml + keep-warm.yml + steps).
+
+## Hotfix 5: submit auto-waits for the sleeping API (no double-tap)
+
+Live diagnosis (2026-08-28): CORS preflight 200 with exact origin, POST route reachable
+(401 unauth), 8/8 health probes 200, schema v02 live — the API is healthy; the failures
+are the free-tier sleep window (Render sleeps after ~15 min idle; keep-warm not in repo).
+
+- `api.js`: all requests get a 45 s timeout (AbortController) so a request during cold
+  start fails cleanly instead of hanging; added `waitForApi()` — polls health up to 90 s.
+- `main.js`: new `withBackendReady()` — for critical writes (screening submit, manual
+  check-in, clinical assessment, donation record, clinical review decision, drive status):
+  1) if the API is unreachable, show "backend waking up" and wait for it;
+  2) submit; 3) if the connection still drops, wait again and retry exactly once.
+  The user should never have to tap Submit twice because of a cold start.
+- `saveScreening` keeps the specific outdated-API detection (v01 server) and now refreshes
+  the profile and confirms success after submit.

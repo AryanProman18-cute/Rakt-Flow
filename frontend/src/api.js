@@ -40,8 +40,14 @@ async function parseResponse(response) {
 
 async function request(url, options) {
   const method = String(options?.method || 'GET').toUpperCase();
+  const timeoutMs = options?.timeoutMs || 45000;
+  // A hanging request during a cold start must fail cleanly so the caller can
+  // wait for the API and retry, instead of spinning forever.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const requestOptions = { ...options, signal: options?.signal || controller.signal };
   try {
-    return await fetch(url, options);
+    return await fetch(url, requestOptions);
   } catch (error) {
     // A sleeping free Render service fails the FIRST connection. Reads are
     // safe to retry once without side effects; writes are left to the caller
@@ -49,12 +55,14 @@ async function request(url, options) {
     const safeToRetry = ['GET', 'HEAD', 'OPTIONS'].includes(method);
     if (safeToRetry && error?.name !== 'AbortError') {
       await new Promise(resolve => setTimeout(resolve, 2000));
-      try { return await fetch(url, options); } catch { /* fall through to the hint below */ }
+      try { return await fetch(url, requestOptions); } catch { /* fall through to the hint below */ }
     }
     const hint = error?.name === 'AbortError'
       ? 'The request timed out while the backend was waking up.'
       : 'The browser could not reach the RaktFlow API. Check Render status and CORS settings.';
     throw new Error(hint, { cause: error });
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -71,6 +79,23 @@ export async function pingApi(timeoutMs = 8000) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Wait until the backend answers a health probe. A free Render service can
+ * take 30–90 s to wake; callers use this before a write so the user does not
+ * have to tap again once the instance is up.
+ */
+export async function waitForApi({ maxMs = 90000, intervalMs = 3000, onWait } = {}) {
+  const deadline = Date.now() + maxMs;
+  let waited = 0;
+  while (Date.now() < deadline) {
+    if (await pingApi(6000)) return true;
+    waited += intervalMs;
+    onWait?.(waited);
+    await new Promise(resolve => setTimeout(resolve, intervalMs));
+  }
+  return await pingApi(6000);
 }
 
 export async function apiFetch(path, options = {}) {
