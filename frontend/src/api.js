@@ -1,12 +1,14 @@
 import { getRaktFlowAuth } from './auth.js';
 
-const RAW_API_BASE = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
-// Recover safely from the common deployment mistake where the health endpoint
-// was pasted instead of the Render service origin.
-const API_BASE = RAW_API_BASE.replace(/\/api\/v1\/health$/i, '');
+// Same-origin API: Vercel rewrites /api/* to the Render origin (see
+// vercel.json). This removes CORS and cross-origin CDN variants — the cause of
+// "backend is waking up" on mobile links despite a healthy API. The dashboard
+// variable VITE_API_BASE_URL is deliberately NOT read here any more: it points
+// at the Render origin and would bypass the proxy path.
+const API_BASE = '';
 
-export const isApiConfigured = () => Boolean(API_BASE);
-export const configuredApiOrigin = () => API_BASE;
+export const isApiConfigured = () => true;
+export const configuredApiOrigin = () => 'same-origin /api (Vercel → Render)';
 
 function detailMessage(detail) {
   if (typeof detail === 'string') return detail;
@@ -68,7 +70,6 @@ async function request(url, options) {
 
 /** Cheap liveness probe used before telling the user to retry a failed action. */
 export async function pingApi(timeoutMs = 15000) {
-  if (!API_BASE) return false;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -99,7 +100,6 @@ export async function waitForApi({ maxMs = 90000, intervalMs = 3000, onWait } = 
 }
 
 export async function apiFetch(path, options = {}) {
-  if (!API_BASE) throw new Error('The frontend API address is not configured.');
   const user = getRaktFlowAuth().currentUser;
   if (!user) throw new Error('Authentication required');
   const token = await user.getIdToken();
@@ -112,7 +112,6 @@ export async function apiFetch(path, options = {}) {
 }
 
 export async function apiDownload(path) {
-  if (!API_BASE) throw new Error('The frontend API address is not configured.');
   const user = getRaktFlowAuth().currentUser;
   if (!user) throw new Error('Authentication required');
   const token = await user.getIdToken();
@@ -130,7 +129,6 @@ export async function apiDownload(path) {
 }
 
 export async function publicApiFetch(path, options = {}) {
-  if (!API_BASE) throw new Error('The frontend API address is not configured.');
   const headers = { ...options.headers };
   if (options.body && !(options.body instanceof FormData) && !headers['Content-Type']) {
     headers['Content-Type'] = 'application/json';
@@ -140,7 +138,6 @@ export async function publicApiFetch(path, options = {}) {
 }
 
 export function prewarmApi() {
-  if (!API_BASE) return Promise.resolve(null);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12000);
   return fetch(`${API_BASE}/api/v1/health`, { method: 'GET', signal: controller.signal })

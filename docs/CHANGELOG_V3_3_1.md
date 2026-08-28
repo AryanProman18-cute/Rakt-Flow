@@ -239,3 +239,26 @@ and succeeds. Hotfix 7 gives the fallback room:
 - `BUILD_TAG` → `v3.3.1-h7` (visible in the pre-check modal subtitle + in-app footer).
 - Net effect: one tap now tolerates multi-second connect fallbacks and a 30–90 s Render
   cold start; the submit still retries once, then reports honestly.
+
+## Hotfix 8: same-origin API through a Vercel rewrite (no direct Render calls)
+
+Decisive screenshot: the user's device ran v3.3.1-h7 and STILL timed out every ping
+(20 s deadlines) while the API was repeatedly verified healthy (0–1 s responses) and the
+same device loaded the Vercel-served app itself instantly. The failing leg is therefore
+the direct browser→onrender.com connection (Cloudflare HTTP/3 stall on mobile links),
+not the app, not the backend. Fix: stop using that leg.
+
+- `vercel.json` (repo root and `frontend/`): `/api/:path*` is now rewritten (proxied)
+  to `https://raktflow-api.onrender.com/api/:path*` — the API and the UI share one
+  Vercel origin, which the device already reaches reliably.
+- `frontend/src/api.js`: `API_BASE` is now same-origin (`''`); `VITE_API_BASE_URL`
+  (dashboard variable pointing at the Render origin) is no longer read, so the proxy
+  path cannot be bypassed. All 5 "not configured" guards removed because same-origin
+  `/api` is always available when the app is served by Vercel.
+- Same-origin means **no CORS at all** for API calls, and all traffic rides the same
+  CDN path as the UI.
+- `BUILD_TAG` → `v3.3.1-h8`.
+- Safety check: the app has no WebSocket/SSE dependency on the API (live data uses
+  Firestore), so the rewrite is lossless.
+- After deploy, verify with: `https://raktflow-demo123.vercel.app/api/v1/health` →
+  `{"status":"ok",...}`.
