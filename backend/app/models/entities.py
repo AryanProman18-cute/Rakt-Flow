@@ -274,8 +274,8 @@ class ScreeningReviewAssignment(Base, UUIDPrimaryKey, Timestamped):
     __table_args__ = (UniqueConstraint("screening_id", name="uq_screening_review_assignment"),)
     screening_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("screenings.id", ondelete="CASCADE"), nullable=False)
     hospital_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("hospital_profiles.id", ondelete="RESTRICT"), nullable=False)
-    selected_by_donor_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    purpose_consent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    selected_by_donor_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    purpose_consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String(24), default="ACTIVE", nullable=False)
 
 

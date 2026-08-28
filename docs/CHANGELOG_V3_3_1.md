@@ -313,3 +313,26 @@ Hotfix 10 (final): migrator hardened — validated on real PostgreSQL 16.
   boot is a no-op; (B) pre-existing hospital_profiles — 003 fails by design,
   006 still heals screenings + creates screening_review_assignments, submit
   INSERTs succeed.
+
+## Hotfix 11: screening_review_assignments now accepts NULL selection timestamps
+
+Found in the Render application logs (IntegrityError, sqlalche.me/e/20/gkpj):
+submit_screening inserts a ScreeningReviewAssignment per review facility; for
+facilities AUTO-ASSIGNED by the server (donor did not pick one), the API
+correctly passes NULL for selected_by_donor_at and purpose_consent_at — but
+the table declared both columns NOT NULL, so the INSERT failed with an
+IntegrityError -> HTTP 500 -> the app's "The action could not be completed"
+toast. The screening row itself inserted fine; the assignments INSERT was the
+failure point.
+
+Fix:
+- migrations/007_screening_assign_nullable.sql — ALTER ... DROP NOT NULL on
+  both columns (idempotent, single statement; applied automatically on boot).
+- migrations/006 trimmed to the screenings heal only (standalone, no
+  dependency on other tables), so 006 and 007 apply independently even when
+  other migrations cannot run.
+- backend/app/models/entities.py — the two columns are now Optional.
+- Frontend BUILD_TAG -> v3.3.1-h11.
+- Validated on real PostgreSQL 16: fresh chain (001-007) and live-shaped DB
+  (NOT NULL table pre-existing, 003/005 failing) both insert the exact
+  auto-assigned row (NULL, NULL) successfully.
