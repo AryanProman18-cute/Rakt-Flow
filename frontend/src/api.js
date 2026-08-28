@@ -40,7 +40,7 @@ async function parseResponse(response) {
 
 async function request(url, options) {
   const method = String(options?.method || 'GET').toUpperCase();
-  const timeoutMs = options?.timeoutMs || 45000;
+  const timeoutMs = options?.timeoutMs || 75000;
   // A hanging request during a cold start must fail cleanly so the caller can
   // wait for the API and retry, instead of spinning forever.
   const controller = new AbortController();
@@ -67,7 +67,7 @@ async function request(url, options) {
 }
 
 /** Cheap liveness probe used before telling the user to retry a failed action. */
-export async function pingApi(timeoutMs = 8000) {
+export async function pingApi(timeoutMs = 15000) {
   if (!API_BASE) return false;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -90,7 +90,7 @@ export async function waitForApi({ maxMs = 90000, intervalMs = 3000, onWait } = 
   const deadline = Date.now() + maxMs;
   let waited = 0;
   while (Date.now() < deadline) {
-    if (await pingApi(6000)) return true;
+    if (await pingApi(15000)) return true;
     waited += intervalMs;
     onWait?.(waited);
     await new Promise(resolve => setTimeout(resolve, intervalMs));
@@ -142,7 +142,7 @@ export async function publicApiFetch(path, options = {}) {
 export function prewarmApi() {
   if (!API_BASE) return Promise.resolve(null);
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 4500);
+  const timer = setTimeout(() => controller.abort(), 12000);
   return fetch(`${API_BASE}/api/v1/health`, { method: 'GET', signal: controller.signal })
     .catch(() => null)
     .finally(() => clearTimeout(timer));

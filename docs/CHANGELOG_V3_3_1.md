@@ -221,3 +221,21 @@ both), so a screenshot could never tell which version a device runs. Hotfix 6:
   transient cold starts no longer alarm users; the auto-wait + auto submit still follows.
 - `main.js`: visible **build tag `v3.3.1-h6`** in the pre-check modal subtitle and the
   in-app footer, so any screenshot identifies the deployed build at a glance.
+
+## Hotfix 7: patient timeouts for networks that stall HTTP/3
+
+Root cause found with the user's own screenshot: the deployed Hotfix-6 modal (build tag
+v3.3.1-h6 visible) still timed out. Backend healthy (240 s watch: 20/20 < 1 s; real-token
+submit 217 ms) and the address-bar GET of `/api/v1/health` works on the same device, but
+every fetch from the page failed within its timeout. The API response advertises
+`alt-svc: h3=":443"; ma=86400` (Cloudflare HTTP/3) — on mobile networks that stall UDP/443,
+the browser must fall back to TCP, which takes several seconds. The app's 6 s ping / 45 s
+request deadlines aborted *before* the fallback; a navigation (address bar) has no abort
+and succeeds. Hotfix 7 gives the fallback room:
+
+- `api.js`: default request timeout 45 s → **75 s**; `pingApi` default 8 s → **15 s**;
+  `waitForApi` polls with **15 s** pings; `prewarmApi` abort 4.5 s → **12 s**.
+- `main.js`: submit-time and recovery pings use **20 s** deadlines.
+- `BUILD_TAG` → `v3.3.1-h7` (visible in the pre-check modal subtitle + in-app footer).
+- Net effect: one tap now tolerates multi-second connect fallbacks and a 30–90 s Render
+  cold start; the submit still retries once, then reports honestly.
