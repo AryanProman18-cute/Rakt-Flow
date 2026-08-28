@@ -72,7 +72,7 @@ export async function pingApi(timeoutMs = 8000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(`${API_BASE}/api/v1/health`, { method: 'HEAD', signal: controller.signal });
+    const response = await fetch(`${API_BASE}/api/v1/health`, { method: 'GET', signal: controller.signal });
     return response.ok;
   } catch {
     return false;
@@ -143,7 +143,7 @@ export function prewarmApi() {
   if (!API_BASE) return Promise.resolve(null);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 4500);
-  return fetch(`${API_BASE}/api/v1/ping`, { method: 'HEAD', signal: controller.signal })
+  return fetch(`${API_BASE}/api/v1/health`, { method: 'GET', signal: controller.signal })
     .catch(() => null)
     .finally(() => clearTimeout(timer));
 }

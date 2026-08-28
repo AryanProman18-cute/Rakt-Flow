@@ -203,3 +203,21 @@ are the free-tier sleep window (Render sleeps after ~15 min idle; keep-warm not 
   The user should never have to tap Submit twice because of a cold start.
 - `saveScreening` keeps the specific outdated-API detection (v01 server) and now refreshes
   the profile and confirms success after submit.
+
+## Hotfix 6: GET pings, silent cold-start wait, visible build label
+
+Follow-up (2026-08-28): the 5-stage evidence confirmed the API healthy (240s watch:
+20/20 probes <1 s; real Firebase token submit answered 217 ms with 403 "role" — auth,
+CORS and the write route all work). The deployed UI, however, still produced the
+"backend waking up" toast on devices even though the API answers instantly — and the
+old and new bundles are pixel- and wording-identical (the toast copy is the same in
+both), so a screenshot could never tell which version a device runs. Hotfix 6:
+
+- `api.js`: `pingApi()` and `prewarmApi()` now use **GET** on `/api/v1/health` instead
+  of HEAD (GET is the path proven to work from the affected device; `/api/v1/ping` is
+  HEAD-only and is no longer used by prewarm).
+- `main.js` (`withBackendReady` + `saveScreening`): the "backend waking up" toast is
+  now shown only after the API is still unreachable after ~26 s of silent waiting —
+  transient cold starts no longer alarm users; the auto-wait + auto submit still follows.
+- `main.js`: visible **build tag `v3.3.1-h6`** in the pre-check modal subtitle and the
+  in-app footer, so any screenshot identifies the deployed build at a glance.
