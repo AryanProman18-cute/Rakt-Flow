@@ -25,7 +25,7 @@ import { hydrateMapplsMaps, miniMapMarkup } from './map-adapter.js';
 import { registerServiceWorker } from './register-sw.js';
 
 /** Visible build marker so a screenshot can always identify the deployed version. */
-const BUILD_TAG = 'v3.3.1-h9';
+const BUILD_TAG = 'v3.3.1-h10';
 
 const icons = {
   activity: '<path d="M3 12h4l2.5-7 5 14 2.5-7h4"/>',

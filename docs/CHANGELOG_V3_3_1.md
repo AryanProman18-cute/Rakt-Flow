@@ -286,3 +286,30 @@ Fix:
   (best-effort: failures are logged, the API still starts).
 - `backend/Dockerfile` — ships `migrations/` into the image.
 - Frontend `BUILD_TAG` → `v3.3.1-h9`.
+
+## Hotfix 10: moved migrations into the app package (fixes Render build error)
+
+Hotfix 9 shipped `COPY migrations ./migrations` in backend/Dockerfile, but
+render.yaml builds with `dockerContext: ./backend`, so that COPY had no source
+and **the Render deploy failed (build error)** — "not deployed".
+
+Fix:
+- `backend/app/migrations/*.sql` — migrations now live inside the app package,
+  shipped by the existing `COPY app ./app` (Dockerfile back to the h8 form).
+- `backend/app/core/migrate.py` — rewritten: raw asyncpg connection,
+  statement-aware splitting (handles `$$` plpgsql bodies), per-file
+  transactions, and `001_initial.sql` presumed-applied when the `screenings`
+  table already exists (no replay of CREATE TABLEs on pre-existing DBs).
+- `app/main.py` lifespan uses `engine.connect()`.
+- Frontend `BUILD_TAG` → `v3.3.1-h10`.
+
+Hotfix 10 (final): migrator hardened — validated on real PostgreSQL 16.
+- 006 now also CREATE TABLE IF NOT EXISTS hospital_profiles (self-sufficient
+  for the submit path even if migration 003 could not run).
+- migrate.py uses structlog (stdlib logging rejected `file=` kwargs and would
+  have crashed the migrator on the first failed migration).
+- Tested against a real PG16 cluster, two scenarios: (A) clean 001-era DB —
+  all of 001-006 apply, schema healed, submit-style INSERTs succeed, second
+  boot is a no-op; (B) pre-existing hospital_profiles — 003 fails by design,
+  006 still heals screenings + creates screening_review_assignments, submit
+  INSERTs succeed.

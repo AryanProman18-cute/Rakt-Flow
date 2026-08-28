@@ -6,7 +6,6 @@ RUN addgroup --system raktflow && adduser --system --ingroup raktflow raktflow
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
-COPY migrations ./migrations
 RUN mkdir -p /app/var/requisitions && chown -R raktflow:raktflow /app
 USER raktflow
 EXPOSE 8000
