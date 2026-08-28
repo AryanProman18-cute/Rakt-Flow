@@ -7,6 +7,8 @@ from fastapi.responses import ORJSONResponse
 
 from app.api.router import api_router
 from app.core.config import get_settings
+from app.core.database import SessionLocal
+from app.core.migrate import apply_migrations
 
 settings = get_settings()
 logger = structlog.get_logger()
@@ -15,6 +17,13 @@ logger = structlog.get_logger()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings.validate_production()
+    # Apply pending SQL migrations before serving (session-based, best effort:
+    # a migration failure is logged and the API still starts).
+    try:
+        async with SessionLocal() as session:
+            await apply_migrations(session)
+    except Exception as exc:  # pragma: no cover - depends on live DB state
+        logger.warning("migrations_skipped", error=str(exc))
     logger.info("raktflow_api_started", environment=settings.app_env)
     yield
     logger.info("raktflow_api_stopped")

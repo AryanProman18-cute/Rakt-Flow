@@ -262,3 +262,27 @@ not the app, not the backend. Fix: stop using that leg.
   Firestore), so the rewrite is lossless.
 - After deploy, verify with: `https://raktflow-demo123.vercel.app/api/v1/health` →
   `{"status":"ok",...}`.
+
+## Hotfix 9: auto-applied DB migration — the real 500 root cause
+
+End-to-end reproduction (verified email → bootstrap → ROLE_DONOR → profile → exact
+screening payload, through the Vercel proxy): **POST /donors/me/screenings → 500**.
+
+Root cause: the repo's SQL migrations (001–005) were never applied automatically;
+the Dockerfile only ran uvicorn, render.yaml had no migration step, and the server
+had no migration runner. The live `screenings` table is still 001-era — missing
+`questionnaire_version`, `flags`, `attested_at`, `review_status`, `reviewed_at`,
+`review_note`, `eligible_on`, `deferral_reason_codes`, and its `outcome` CHECK does
+not include `TEMPORARY_DEFERRAL_SUGGESTED` — so every screening insert fails with a
+500 ("column does not exist") and the UI shows the generic "Action could not be
+completed" toast.
+
+Fix:
+- `migrations/006_screening_submit_fix.sql` — idempotent (IF NOT EXISTS / DROP
+  CONSTRAINT IF EXISTS) upgrade of the screenings schema + the
+  `screening_review_assignments` table; safe on any database state.
+- `backend/app/core/migrate.py` + lifespan hook in `main.py` — at startup, pending
+  `migrations/*.sql` are applied in order and tracked in `schema_migrations`
+  (best-effort: failures are logged, the API still starts).
+- `backend/Dockerfile` — ships `migrations/` into the image.
+- Frontend `BUILD_TAG` → `v3.3.1-h9`.
