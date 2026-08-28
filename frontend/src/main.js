@@ -7,7 +7,7 @@ import './logistics.css';
 import QRCode from 'qrcode';
 import { BLOOD_BANK_CENTRES } from './public/blood-banks.js';
 
-import { apiDownload, apiFetch, configuredApiOrigin, isApiConfigured, prewarmApi, publicApiFetch } from './api.js';
+import { apiDownload, apiFetch, configuredApiOrigin, isApiConfigured, pingApi, prewarmApi, publicApiFetch } from './api.js';
 import {
   authErrorMessage,
   completeGoogleRedirect,
@@ -584,7 +584,8 @@ function adminHospitals() {
 }
 
 function adminDrives() {
-  return `${pageHeader('admin.drivesTitle','admin.drivesSubtitle',button('refresh-admin','common.refresh','refresh','btn-secondary'))}<div class="stack">${state.drives.length ? state.drives.map(item => `<article class="card drive-card"><div class="drive-main"><div class="drive-title-row"><h2>${esc(item.name)}</h2>${statusBadge(item.status)}</div><p>${esc(item.venue_name || item.address)} · ${esc(fmtDate(item.starts_at))}</p><span class="badge badge-neutral">${esc(tr('common.target'))}: ${item.target_units}</span></div><div class="drive-actions">${item.status === 'PLANNED' ? `<button class="btn btn-primary btn-sm" data-action="drive-status" data-drive-id="${item.id}" data-status="APPROVED">${esc(tr('common.approve'))}</button>` : ''}${!['COMPLETED','CANCELLED'].includes(item.status) ? `<button class="btn btn-secondary btn-sm" data-action="drive-status" data-drive-id="${item.id}" data-status="CANCELLED">${esc(tr('common.cancel'))}</button>` : ''}</div></article>`).join('') : emptyState('calendar','organizer.noDrives','organizer.noDrivesHelp')}</div>`;
+  const drives = state.adminData?.drives?.length ? state.adminData.drives : state.drives;
+  return `${pageHeader('admin.drivesTitle','admin.drivesSubtitle',button('refresh-admin','common.refresh','refresh','btn-secondary'))}<div class="stack">${drives.length ? drives.map(item => `<article class="card drive-card"><div class="drive-main"><div class="drive-title-row"><h2>${esc(item.name)}</h2>${statusBadge(item.status)}</div><p>${esc(item.venue_name || item.address)} · ${esc(fmtDate(item.starts_at))}</p><span class="badge badge-neutral">${esc(tr('common.target'))}: ${item.target_units}</span></div><div class="drive-actions">${item.status === 'PLANNED' ? `<button class="btn btn-primary btn-sm" data-action="drive-status" data-drive-id="${item.id}" data-status="APPROVED">${esc(tr('common.approve'))}</button>` : ''}${!['COMPLETED','CANCELLED'].includes(item.status) ? `<button class="btn btn-secondary btn-sm" data-action="drive-status" data-drive-id="${item.id}" data-status="CANCELLED">${esc(tr('common.cancel'))}</button>` : ''}</div></article>`).join('') : emptyState('calendar','organizer.noDrives','organizer.noDrivesHelp')}</div>`;
 }
 
 function adminData() {
@@ -1307,6 +1308,13 @@ async function saveScreening() {
     if (/review_hospital_id|consent_to_selected_facility_review|IN-PRECHECK-2026-01/i.test(raw)) {
       toast(tr('error.title'), tr('error.outdatedApi'), 'warning'); return;
     }
+    // A dropped first connection (sleeping API) is almost always transient:
+    // probe once so the message says "retry now" instead of "check Render/CORS".
+    if (/could not reach|cors|timed out/i.test(raw)) {
+      const alive = await pingApi(12000);
+      toast(tr('error.title'), tr(alive ? 'error.backendWaking' : 'error.backendConnection'), 'warning');
+      return;
+    }
     toast(tr('error.title'), friendlyError(error), 'warning');
   }
 }
@@ -1919,6 +1927,12 @@ window.addEventListener('online', () => { state.online=true; render(); toast(tr(
 window.addEventListener('offline', () => { state.online=false; render(); toast(tr('error.title'),tr('error.offline'),'warning'); });
 
 if (import.meta.env.PROD) registerServiceWorker(() => toast(tr('success.title'),tr('success.updateReady')));
+
+// A free Render service sleeps after idle; waking it as soon as the user
+// returns to a backgrounded tab removes the "could not reach" first-tap race.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) prewarmApi();
+});
 
 (async function initialize() {
   state.locale = await loadLocale(state.locale);

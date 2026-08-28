@@ -6,7 +6,7 @@ services:
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
     healthCheckPath: /api/v1/health
-    autoDeploy: false
+    autoDeploy: true
     envVars:
       - key: APP_ENV
         value: production

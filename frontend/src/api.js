@@ -39,13 +39,37 @@ async function parseResponse(response) {
 }
 
 async function request(url, options) {
+  const method = String(options?.method || 'GET').toUpperCase();
   try {
     return await fetch(url, options);
   } catch (error) {
+    // A sleeping free Render service fails the FIRST connection. Reads are
+    // safe to retry once without side effects; writes are left to the caller
+    // so the action is never silently double-submitted.
+    const safeToRetry = ['GET', 'HEAD', 'OPTIONS'].includes(method);
+    if (safeToRetry && error?.name !== 'AbortError') {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      try { return await fetch(url, options); } catch { /* fall through to the hint below */ }
+    }
     const hint = error?.name === 'AbortError'
       ? 'The request timed out while the backend was waking up.'
       : 'The browser could not reach the RaktFlow API. Check Render status and CORS settings.';
     throw new Error(hint, { cause: error });
+  }
+}
+
+/** Cheap liveness probe used before telling the user to retry a failed action. */
+export async function pingApi(timeoutMs = 8000) {
+  if (!API_BASE) return false;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`${API_BASE}/api/v1/health`, { method: 'HEAD', signal: controller.signal });
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
   }
 }
 

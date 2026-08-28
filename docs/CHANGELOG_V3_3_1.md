@@ -154,3 +154,36 @@ Audited after the first live roll-out (two new user screenshots):
 
 **Already in this hotfix round:** Google sign-in popup-first (partitioned browsers),
 bootstrap auto-retry, `RENDER_HEALTH_URL` keep-warm activation.
+
+## Hotfix 3: "could not reach the API" — sleep-window resilience + auto-deploy
+
+Diagnosed live (2026-08-28): the API was healthy (200 in ~300 ms) and CORS was correct —
+the failure happens when the **free Render service is asleep**: the first connection
+after idle is dropped, and the app showed the misleading "Check Render and CORS" toast.
+
+- **Reads retry once** on a dropped connection (GET/HEAD/OPTIONS) inside `apiFetch`; writes
+  are never silently double-submitted.
+- **`pingApi()` probe**: when a write fails on a network drop, the app now pings the API
+  and says *"The backend is waking up. Wait a moment and retry."* if it is reachable
+  again (accurate + actionable), instead of blaming CORS.
+- **Wake-on-refocus**: returning to a backgrounded tab pre-warms the API
+  (`visibilitychange` → `prewarmApi`), so the sleep race is closed before the user taps.
+- **Keep-warm now runs without a secret** (defaults to the public Render health URL) —
+  this workflow must exist in the repo's `.github/workflows/` to keep the service warm.
+- **`render-deploy.yml`**: push to `main` (backend paths) triggers the Render Deploy Hook
+  automatically and polls until `IN-PRECHECK-2026-02` is live, failing loudly otherwise.
+  Add the `RENDER_DEPLOY_HOOK` secret once (Render → raktflow-api → Settings → Deploy Hook).
+- **Super Admin "Drive approvals" now lists ALL drives** (`/admin/data`), so a planned
+  drive created by any organizer can be approved from the UI.
+
+## Hotfix 4: unpack workflow push failure (GITHUB_TOKEN cannot add workflow files)
+
+- Diagnosis: the repo ZIP was valid; the failure was the `git push` in the "Save extracted
+  source" step. The archive shipped `.github/workflows/render-deploy.yml`, and GitHub rejects
+  pushes made with `GITHUB_TOKEN` that create/modify workflow files.
+- Fix in repo: `unpack.yml` now removes **every** workflow file (except itself) before the
+  commit — `.github/workflows` is never touched by the unpack push again.
+- Fix in the deliverable: the archive no longer ships any `.github/workflows/` files, and
+  `render.yaml` now ships with `autoDeploy: true` (Render rebuilds on every push to main —
+  one final manual "Deploy latest commit" applies the blueprint change).
+- Guide: `docs/DEPLOY_UNPACK_FIX_2026_08_28.md` (corrected unpack.yml + keep-warm.yml + steps).
