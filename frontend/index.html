@@ -7,9 +7,9 @@
   <meta name="description" content="RaktFlow verified blood donation and emergency logistics." />
   <title>RaktFlow — Blood logistics that move in time</title>
   
-       <style>
+         <style>
     /* =========================================
-       BULLETPROOF UI OVERRIDES
+       SAFE UI OVERRIDES
        ========================================= */
 
     /* 1. SQUISHED ICONS & DROPDOWNS FIX */
@@ -23,42 +23,23 @@
     }
     body .icon svg { margin: auto !important; }
     
-    /* 2. STOP TEXT BLEEDING (Global) */
+    /* 2. STOP SIDEBAR BLEEDING */
     body aside.sidebar { overflow-x: hidden !important; }
-    body .nav-item, body .nav-label { white-space: nowrap !important; }
+    body .nav-item { white-space: nowrap !important; }
 
-    /* 3. SIDEBAR COLLAPSE FIX (701px to 1180px)
-       Catches iPads and small desktop windows without breaking the mobile menu */
-    @media (min-width: 701px) and (max-width: 1180px) {
-      body aside.sidebar { width: 82px !important; }
-      
-      /* Aggressively hides ANY text labels added to the sidebar */
-      body aside.sidebar .nav-label, 
-      body aside.sidebar .nav-item span, 
-      body aside.sidebar .role-context, 
-      body aside.sidebar .brand-copy,
-      body aside.sidebar .network-card > div:not(.network-icon),
-      body aside.sidebar > div:not(.brand):not(.side-nav):not(.sidebar-foot),
-      body aside.sidebar nav > div,
-      body aside.sidebar nav > span,
-      body aside.sidebar nav > h1,
-      body aside.sidebar nav > h2,
-      body aside.sidebar nav > h3,
-      body aside.sidebar nav > h4,
-      body aside.sidebar nav > h5,
-      body aside.sidebar nav > h6 { 
-        display: none !important; 
-      }
-      body aside.sidebar .nav-item { justify-content: center !important; padding: 0 !important; }
-    }
-
-    /* 4. MOBILE DASHBOARD & DARK MODE FIX */
-    @media (max-width: 700px) { body .mobile-bottom-nav { display: none !important; } }
+    /* 3. MOBILE DASHBOARD & DARK MODE FIX */
+    @media (max-width: 768px) { body .mobile-bottom-nav { display: none !important; } }
     [data-theme="dark"] body .dispatch-panel { 
       background: linear-gradient(145deg, var(--surface), color-mix(in srgb, var(--surface), var(--rose-600) 15%)) !important; 
       border-color: var(--border) !important; 
     }
+    [data-theme="dark"] body .card[style*="background"], 
+    [data-theme="dark"] body div[style*="background: var(--surface-soft)"] { 
+      background: var(--surface-soft) !important; 
+      color: var(--text) !important; 
+    }
   </style>
+
 
 </head>
 <body>
