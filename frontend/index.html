@@ -5,7 +5,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#e11d48" />
   <meta name="description" content="RaktFlow verified blood donation and emergency logistics." />
-  <title>RaktFlow — Blood logistics that move in time</title>
+  <title>RaktFlow | Blood logistics that move in time</title>
+  
+  <style>
+    /* Remove redundant mobile bottom dashboard */
+    @media (max-width: 768px) {
+      .mobile-bottom-nav {
+        display: none !important;
+      }
+    }
+
+    /* Fix left sidebar icon and text alignment */
+    .nav-item {
+      display: flex !important;
+      align-items: center !important;
+      white-space: nowrap !important;
+    }
+
+    /* Fix role switcher menu alignment */
+    .role-option {
+      display: flex !important;
+      align-items: center !important;
+      text-align: left !important;
+    }
+
+    .role-option span {
+      white-space: nowrap !important;
+    }
+  </style>
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to main content</a>
@@ -15,3 +42,4 @@
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>
+
