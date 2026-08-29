@@ -1080,3 +1080,48 @@ button .icon, a .icon, label .icon { vertical-align: middle; }
   .reveal { opacity: 1; transform: none; transition: none; }
   .hero-orb, .product-window, .scan-line { animation: none !important; }
 }
+/* =========================================
+   UI ALIGNMENT & LAYOUT FIXES
+   ========================================= */
+
+/* FIX 1: Prevent all icons from shrinking when text wraps (Images 6 & 8) */
+.icon, 
+.role-option-icon, 
+.activity-icon, 
+.metric-icon, 
+.dispatch-head-icon,
+.network-icon {
+  flex-shrink: 0 !important;
+}
+
+/* FIX 2: Vertically center the Role Menu dropdown items (Image 5) */
+.role-option {
+  display: flex !important;
+  align-items: center !important;
+}
+
+/* FIX 3: Prevent Sidebar text from wrapping and breaking layout (Image 7) */
+.nav-item {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+}
+
+.nav-label {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* FIX 4: Ensure multi-line list items stay vertically centered */
+.activity-item, 
+.check-row {
+  align-items: center !important;
+}
+
+/* FIX 5: Remove the redundant mobile bottom navigation (From previous fix) */
+@media (max-width: 768px) {
+  .mobile-bottom-nav {
+    display: none !important;
+  }
+}
+
