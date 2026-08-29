@@ -27,7 +27,7 @@ import { clearSession, loadSession, saveSession } from './session-cache.js';
 import { registerServiceWorker } from './register-sw.js';
 
 /** Visible build marker so a screenshot can always identify the deployed version. */
-const BUILD_TAG = 'v3.4.0-h12';
+const BUILD_TAG = 'v3.4.1-h13';
 
 const icons = {
   activity: '<path d="M3 12h4l2.5-7 5 14 2.5-7h4"/>',
@@ -109,6 +109,7 @@ const state = {
   sessionCache: null,
   reconnect: false,
   reconnectStage: null,
+  reconnectPillHidden: false,
   locale: getLocale(),
   theme: storage.getItem('raktflow-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
   role: storage.getItem('raktflow-role') || 'donor',
@@ -336,14 +337,14 @@ function renderLanding() {
   return `<div class="public-site">
     <header class="public-nav">
       <a class="public-brand" href="#top"><span class="brand-mark">${icon('activity')}</span><span>Rakt<span>Flow</span></span></a>
-      <nav class="public-links"><a href="#initiative">The initiative</a><a href="#how">How it works</a><a href="#hospital-apply">For hospitals</a><a href="#contact">Contact</a></nav>
+      <nav class="public-links"><a href="#mission">Our mission</a><a href="#story">Our story</a><a href="#initiative">The initiative</a><a href="#who">Who it's for</a><a href="#how">How it works</a><a href="#contact">Contact</a></nav>
       <div class="public-actions"><button class="btn btn-ghost" data-action="open-signin">Sign in</button><button class="btn btn-primary public-donor-button" data-action="open-register">Become a donor ${icon('chevron','icon-sm')}</button></div>
     </header>
     <main id="top">
       ${state.authError ? `<section class="public-error"><strong>Firebase sign-in succeeded, but the operational service could not finish account setup.</strong><span>${esc(state.authError)}</span><div><button class="btn btn-primary" data-action="retry-bootstrap">Retry connection</button><button class="btn btn-secondary" data-action="sign-out">Sign out</button></div><small>API: ${esc(configuredApiOrigin() || 'not configured')}</small></section>` : ''}
       ${campaign ? `<section class="campaign-invite"><span class="section-kicker">Verified drive invitation</span><h1>${esc(campaign.title)}</h1><p>${esc(campaign.description)}</p><div class="campaign-invite-meta"><span>${icon('calendar','icon-sm')} ${esc(fmtDate(campaign.drive.starts_at))}</span><span>${icon('pin','icon-sm')} ${esc(campaign.drive.venue_name || campaign.drive.address)}</span></div><button class="btn btn-primary btn-lg" data-action="campaign-register">Create account or sign in to register</button></section>` : ''}
       <section class="hero-section">
-        <div class="hero-glow hero-glow-one"></div><div class="hero-glow hero-glow-two"></div><div class="hero-glow hero-glow-three"></div>
+        <div class="hero-glow hero-glow-one"></div><div class="hero-glow hero-glow-two"></div><div class="hero-glow hero-glow-three"></div><span class="hero-orb orb-a"></span><span class="hero-orb orb-b"></span>
         <div class="hero-copy"><div class="hero-kicker"><span class="status-dot"></span> A verified response network built for India</div><h1>Make blood donation easier to coordinate, safer to verify, and faster to act on.</h1><p class="hero-lead">RaktFlow is a community initiative connecting donors, organizers, verified hospitals and blood banks, host venues, and accountable administrators through one privacy-conscious operational system.</p><blockquote>It does not replace a blood bank, doctor, compatibility test, or emergency service. It helps the right authorized people coordinate verified work.</blockquote><div class="hero-actions"><button class="btn btn-primary btn-lg" data-action="open-register">Join as a donor ${icon('chevron')}</button><a class="btn btn-secondary btn-lg" href="#initiative">Understand the initiative</a></div><div class="hero-assurance"><span>${icon('shield','icon-sm')} Verified accounts</span><span>${icon('lock','icon-sm')} Protected donor data</span><span>${icon('activity','icon-sm')} Human clinical decisions</span></div></div>
         <div class="hero-product"><div class="product-window"><div class="product-bar"><span class="product-dots"><i></i><i></i><i></i></span><span>Live operational network</span><span class="badge badge-green">Connected</span></div><div class="product-body"><div class="product-priority"><span class="emergency-pulse">${icon('droplet')}</span><span><small>Verified coordination</small><strong>${stats.upcoming_drives ?? 0} approved drives</strong><em>${stats.recorded_donations ?? 0} clinically recorded donations</em></span></div><div class="initiative-visual"><span class="initiative-node donor-node">${icon('user')} Donor</span><span class="initiative-line"></span><span class="initiative-node">${icon('users')} Organizer</span><span class="initiative-line"></span><span class="initiative-node">${icon('hospital')} Blood bank</span></div><div class="product-metrics"><div><span>Verified needs</span><strong>${stats.verified_active_requests ?? 0}</strong></div><div><span>Upcoming drives</span><strong>${stats.upcoming_drives ?? 0}</strong></div><div><span>Recorded units</span><strong>${stats.recorded_donations ?? 0}</strong></div></div></div></div></div>
       </section>
@@ -351,6 +352,9 @@ function renderLanding() {
         <div class="live-stats-head"><span class="section-kicker">${esc(tr('landing.statsKicker'))}</span><span class="live-indicator"><i></i>${esc(tr('landing.statsLive'))}</span></div>
         <div class="live-stats-grid">${counter('verified_active_requests','landing.statsNeeds','alert')}${counter('upcoming_drives','landing.statsDrives','calendar')}${counter('recorded_donations','landing.statsDonations','droplet')}${counter('registered_donors','landing.statsDonors','users')}${counter('verified_hospitals','landing.statsFacilities','hospital')}</div>
       </section>
+      <section class="public-section mission-section reveal" id="mission"><div class="section-heading"><span class="section-kicker">${esc(tr('mission.kicker'))}</span><h2>${esc(tr('mission.title'))}</h2><p>${esc(tr('mission.body'))}</p></div><div class="mission-grid"><article><span class="mission-icon">${icon('check')}</span><h3>${esc(tr('mission.valueOneTitle'))}</h3><p>${esc(tr('mission.valueOneBody'))}</p></article><article><span class="mission-icon">${icon('shield')}</span><h3>${esc(tr('mission.valueTwoTitle'))}</h3><p>${esc(tr('mission.valueTwoBody'))}</p></article><article><span class="mission-icon">${icon('lock')}</span><h3>${esc(tr('mission.valueThreeTitle'))}</h3><p>${esc(tr('mission.valueThreeBody'))}</p></article></div><div class="mission-note">${icon('heart','icon-sm')} ${esc(tr('mission.nonprofit'))}</div></section>
+      <section class="story-section reveal" id="story"><span class="story-mark">${icon('droplet','icon-xl')}</span><div class="story-copy"><span class="section-kicker">${esc(tr('story.kicker'))}</span><h2>${esc(tr('story.title'))}</h2><p>${esc(tr('story.p1'))}</p><p>${esc(tr('story.p2'))}</p><p>${esc(tr('story.p3'))}</p></div><ul class="story-benefits"><li>${icon('check','icon-sm')} ${esc(tr('story.benefitOne'))}</li><li>${icon('check','icon-sm')} ${esc(tr('story.benefitTwo'))}</li><li>${icon('check','icon-sm')} ${esc(tr('story.benefitThree'))}</li><li>${icon('check','icon-sm')} ${esc(tr('story.benefitFour'))}</li></ul></section>
+      <section class="public-section who-section reveal" id="who"><div class="section-heading"><span class="section-kicker">${esc(tr('who.kicker'))}</span><h2>${esc(tr('who.title'))}</h2><p>${esc(tr('who.body'))}</p></div><div class="who-grid"><article><span class="who-icon">${icon('user')}</span><h3>${esc(tr('who.donorsTitle'))}</h3><p>${esc(tr('who.donorsBody'))}</p><button class="btn btn-primary" data-action="open-register">${esc(tr('who.donorsCta'))} ${icon('chevron','icon-sm')}</button></article><article><span class="who-icon">${icon('users')}</span><h3>${esc(tr('who.orgTitle'))}</h3><p>${esc(tr('who.orgBody'))}</p><button class="btn btn-secondary" data-action="open-signin">${esc(tr('who.orgCta'))}</button></article><article><span class="who-icon">${icon('hospital')}</span><h3>${esc(tr('who.hospTitle'))}</h3><p>${esc(tr('who.hospBody'))}</p><button class="btn btn-secondary" data-action="open-hospital-apply">${esc(tr('who.hospCta'))}</button></article></div></section>
       <section class="public-section initiative-section" id="initiative"><div class="section-heading"><span class="section-kicker">Why RaktFlow exists</span><h2>A shared operational layer—not another unverified forwarding chain.</h2><p>Blood donation coordination often breaks across disconnected messages, paper lists, uncertain requests, and role confusion. RaktFlow creates a traceable path from a verified account to a scheduled drive, donor registration, protected pre-check, reviewer approval, on-site assessment, collection record, and accountable reconciliation.</p></div><div class="feature-grid"><article><span class="feature-number">01</span><span class="feature-icon">${icon('calendar')}</span><h3>Plan real drives</h3><p>Organizers create drives for Super Admin approval or propose a hosted drive to a venue. Approved schedules become visible to verified donors.</p></article><article><span class="feature-number">02</span><span class="feature-icon">${icon('shield')}</span><h3>Protect clinical boundaries</h3><p>Self-reported blood group and questionnaire answers are never treated as proof. A qualified reviewer controls QR eligibility and on-site staff make the final decision.</p></article><article><span class="feature-number">03</span><span class="feature-icon">${icon('chart')}</span><h3>Replace dummy totals</h3><p>Registration, check-in, clearance, collection, campaign visits, and reconciliation totals come from persisted operational records.</p></article></div></section>
       <section class="hospital-apply-section" id="hospital-apply"><div class="hospital-apply-copy"><span class="section-kicker">${esc(tr('landing.hospitalKicker'))}</span><h2>${esc(tr('landing.hospitalTitle'))}</h2><p>${esc(tr('landing.hospitalBody'))}</p><ul class="hospital-benefits"><li>${icon('shield','icon-sm')} ${esc(tr('landing.hospitalBenefitOne'))}</li><li>${icon('file','icon-sm')} ${esc(tr('landing.hospitalBenefitTwo'))}</li><li>${icon('activity','icon-sm')} ${esc(tr('landing.hospitalBenefitThree'))}</li></ul></div><div class="hospital-apply-card card"><span class="hospital-apply-mark">${icon('hospital','icon-xl')}</span><h3>${esc(tr('landing.hospitalApplyNow'))}</h3><p>${esc(tr('landing.hospitalApplyHelp'))}</p><button class="btn btn-primary btn-lg" data-action="open-hospital-apply">${icon('hospital','icon-sm')} ${esc(tr('landing.hospitalCta'))}</button></div></section>
       <section class="safety-section" id="how"><div class="safety-mark">${icon('heart','icon-xl')}</div><div><span class="section-kicker">A careful five-portal workflow</span><h2>Each role sees its own work and every important transition is recorded.</h2><p>Donors manage their profile and registrations. Organizers operate approved drives. Hospital and blood-bank users review clinical queues and verified needs. Host venues decide proposals. Super Admin controls access and oversight.</p></div><ul><li>${icon('check','icon-sm')} No public patient identity</li><li>${icon('check','icon-sm')} No QR before approved pre-check</li><li>${icon('check','icon-sm')} No collection before on-site clearance</li></ul></section>
@@ -386,9 +390,9 @@ function renderApp() {
 }
 
 function reconnectPill() {
-  if (!state.reconnect) return '';
+  if (!state.reconnect || state.reconnectPillHidden) return '';
   const offline = state.reconnectStage === 'offline';
-  return `<div class="reconnect-pill ${offline ? 'offline' : ''}">${icon('refresh','icon-sm')}<span>${esc(tr(offline ? 'app.reconnectOffline' : 'app.reconnectLive'))}</span>${offline ? `<button class="btn btn-secondary btn-sm" data-action="reconnect-now">${esc(tr('common.retry'))}</button>` : ''}</div>`;
+  return `<div class="reconnect-pill ${offline ? 'offline' : ''}">${icon('refresh','icon-sm')}<span>${esc(tr(offline ? 'app.reconnectOffline' : 'app.reconnectLive'))}</span>${offline ? `<button class="btn btn-secondary btn-sm" data-action="reconnect-now">${esc(tr('common.retry'))}</button>` : ''}<button class="pill-dismiss" data-action="reconnect-hide" aria-label="Dismiss">${icon('x','icon-sm')}</button></div>`;
 }
 
 function renderRolePage() {
@@ -792,12 +796,26 @@ function animateCounters() {
   });
 }
 
+function armReveal() {
+  const targets = document.querySelectorAll('.reveal:not(.in-view)');
+  if (!targets.length) return;
+  const observer = new window.IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('in-view');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.12 });
+  targets.forEach(node => observer.observe(node));
+}
+
 function render() {
   document.body.classList.toggle('landing-mode', state.screen === 'landing');
   if (state.screen === 'loading') app.innerHTML = renderLoading();
   else if (state.screen === 'app') app.innerHTML = renderApp();
   else app.innerHTML = renderLanding();
-  if (state.screen === 'landing') window.requestAnimationFrame(animateCounters);
+  if (state.screen === 'landing') { window.requestAnimationFrame(animateCounters); window.requestAnimationFrame(armReveal); }
   queueMicrotask(hydrateMapplsMaps);
 }
 
@@ -1168,9 +1186,10 @@ async function bootstrapSession(user) {
     if (requestedRole && available.some(([id]) => id === requestedRole)) state.role = requestedRole;
     state.view = query.get('view') || roleConfig[state.role].landing;
     await loadAuthenticatedData();
-    state.reconnect = false; state.reconnectStage = null;
+    state.reconnect = false; state.reconnectStage = null; state.reconnectPillHidden = false;
     state.screen = 'app';
     render();
+    armIdleSignOut();
     saveSession({
       userUid: user.uid,
       account,
@@ -1221,6 +1240,45 @@ function startReconnectLoop(uid, attempts = 0) {
     }
   }, 15000);
 }
+
+/* ------------------------------------------------------------------
+ * Auto-return to the sign-in screen: after 2 minutes of inactivity the
+ * session is closed and the user lands back on the public page. Any
+ * tap, key press or scroll resets the countdown, so an actively used
+ * session never interrupts work.
+ * ------------------------------------------------------------------ */
+const IDLE_SIGN_OUT_MS = 2 * 60 * 1000;
+const IDLE_WARN_BEFORE_MS = 18 * 1000;
+let idleTimers = { main: null, warn: null };
+
+function disarmIdleSignOut() {
+  clearTimeout(idleTimers.main);
+  clearTimeout(idleTimers.warn);
+  idleTimers = { main: null, warn: null };
+}
+
+function armIdleSignOut() {
+  disarmIdleSignOut();
+  if (state.screen !== 'app' || !state.account) return;
+  idleTimers.warn = setTimeout(() => {
+    if (state.screen === 'app' && state.account) toast(tr('error.title'), tr('session.idleWarn'), 'warning');
+  }, Math.max(1000, IDLE_SIGN_OUT_MS - IDLE_WARN_BEFORE_MS));
+  idleTimers.main = setTimeout(() => {
+    if (state.screen !== 'app' || !state.account) return;
+    toast(tr('error.title'), tr('session.idleOut'), 'warning');
+    clearSession();
+    state.sessionCache = null; state.reconnect = false; state.reconnectPillHidden = false;
+    signOutUser().finally(() => {
+      state.account = null; state.profile = null; state.authUser = null;
+      state.screen = 'landing'; state.role = 'donor';
+      state.view = roleConfig.donor.landing; render();
+    });
+  }, IDLE_SIGN_OUT_MS);
+}
+
+['pointerdown', 'keydown', 'touchstart', 'wheel', 'scroll'].forEach(type =>
+  window.addEventListener(type, () => { if (state.screen === 'app') armIdleSignOut(); }, { passive: true })
+);
 
 function enableReconnectMode() {
   if (!state.sessionCache?.account) return false;
@@ -2103,9 +2161,10 @@ app.addEventListener('click', async event => {
   if (action === 'open-signin') return authModal('signin');
   if (action === 'open-register' || action === 'campaign-register') return authModal('register');
   if (action === 'reconnect-now') { prewarmApi(); state.reconnectStage = 'slow'; state.reconnect = true; render(); startReconnectLoop(state.sessionCache?.userUid, 0); return; }
+  if (action === 'reconnect-hide') { state.reconnectPillHidden = true; render(); return; }
   if (action === 'open-hospital-apply') return openHospitalApply();
   if (action === 'retry-bootstrap') return state.authUser ? bootstrapSession(state.authUser) : authModal('signin');
-  if (action === 'sign-out') { closeModal(); await signOutUser(); clearSession(); state.sessionCache=null; state.reconnect=false; state.account=null; state.profile=null; state.screen='landing'; state.authError=''; render(); return; }
+  if (action === 'sign-out') { closeModal(); disarmIdleSignOut(); await signOutUser(); clearSession(); state.sessionCache=null; state.reconnect=false; state.reconnectPillHidden=false; state.account=null; state.profile=null; state.screen='landing'; state.authError=''; render(); return; }
   if (action === 'toggle-mobile-menu') { state.mobileMenu=!state.mobileMenu; render(); return; }
   if (action === 'toggle-role-menu') { state.roleMenu=!state.roleMenu; render(); return; }
   if (action === 'toggle-theme') {
@@ -2191,7 +2250,7 @@ modalRoot.addEventListener('click', async event => {
   if (action === 'show-signin') return authModal('signin');
   if (action === 'show-register') return authModal('register');
   if (action === 'google-signin') { try { state.screen='loading';state.loadingKey='loading.signingIn';closeModal();render();await signInWithGoogle(); } catch(error){state.screen='landing';render();toast('Google sign-in failed',authErrorMessage(error),'warning');} return; }
-  if (action === 'sign-out') { closeModal(); await signOutUser(); clearSession(); state.sessionCache=null; state.reconnect=false; state.screen='landing';state.account=null;render();return; }
+  if (action === 'sign-out') { closeModal(); disarmIdleSignOut(); await signOutUser(); clearSession(); state.sessionCache=null; state.reconnect=false; state.reconnectPillHidden=false; state.screen='landing';state.account=null;render();return; }
   if (action === 'open-profile') { closeModal(); return profileModal(); }
   if (action === 'apply-hospital') { closeModal(); return hospitalApplicationModal(); }
   if (action === 'upload-hospital-evidence') return hospitalEvidenceModal(target.dataset.hospitalId);
@@ -2270,6 +2329,7 @@ function tryRestoreCachedSession() {
   }
   state.reconnect = true;
   state.reconnectStage = 'restoring';
+  state.reconnectPillHidden = false;
   state.screen = 'app';
 }
 

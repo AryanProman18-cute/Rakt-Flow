@@ -386,3 +386,24 @@ V3.4.0 (final, h12): rakt.in-inspired refinements on top of the fixes above.
   components.
 - NOT implemented (would be fake without real sources): RAKT-AI chat, ABHA
   /eRaktKosh integration, Reports & Registers with counts, billing.
+
+## V3.4.1 (Hotfix 13): mobile polish, sidebar hardening, story landing, 2-min auto sign-out
+
+From user screenshots of the live h12 build:
+- Mobile: the horizontal 3-step journey stepper overlapped card text. On
+  <=720px it now renders as a tidy vertical list (no lines, full labels);
+  page-header actions wrap.
+- Sidebar: grouped nav hardened - flex column groups, nav labels ellipsize,
+  sidebar clips overflow (no icons spilling out of the rail).
+- Reconnect pill: added a dismiss (x) button; hidden state reset on reload.
+- Landing: new "Our mission" section (why it exists + 3 values + non-profit
+  note), "The story" section (origin narrative + 4 benefit points), "Who it's
+  for" section (Donors / Organisers / Hospitals doors with CTAs that open the
+  right flow), hero floating orbs, scroll-reveal animations on sections
+  (respects prefers-reduced-motion), nav links added.
+- New: auto-return to sign-in after 2 minutes of inactivity (any tap/key/
+  scroll resets the timer; warning toast ~18s before; session cache cleared on
+  timeout). This bounds the "always auto-signed-in with my account" behaviour
+  exactly as requested: refresh/reopen restores the account, then returns to
+  the public sign-in page after 2 minutes idle.
+- BUILD_TAG -> v3.4.1-h13.
