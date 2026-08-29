@@ -5,32 +5,74 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#e11d48" />
   <meta name="description" content="RaktFlow verified blood donation and emergency logistics." />
-  <title>RaktFlow | Blood logistics that move in time</title>
+  <title>RaktFlow — Blood logistics that move in time</title>
   
   <style>
-    /* Remove redundant mobile bottom dashboard */
+   
+    body .role-option { 
+      align-items: center !important; 
+    }
+    body .role-option .role-option-icon { 
+      flex: 0 0 34px !important; 
+      display: flex !important; 
+      align-items: center !important; 
+      justify-content: center !important; 
+    }
+    body .role-option > span:not(.role-option-icon) { 
+      display: flex !important; 
+      flex-direction: column !important; 
+      justify-content: center !important; 
+      margin: 0 !important; 
+    }
+
+    
+    body .icon, 
+    body .activity-icon, 
+    body .metric-icon, 
+    body .avatar, 
+    body .dispatch-head-icon, 
+    body .network-icon, 
+    body .pin-head { 
+      flex-shrink: 0 !important; 
+      display: flex !important; 
+      align-items: center !important; 
+      justify-content: center !important; 
+    }
+    body .icon svg, 
+    body .activity-icon svg, 
+    body .metric-icon svg, 
+    body .avatar svg, 
+    body .pin-head svg { 
+      margin: auto !important; 
+    }
+
+    
+    body .nav-item, 
+    body .nav-label { 
+      white-space: nowrap !important; 
+      overflow: hidden !important; 
+      text-overflow: ellipsis !important; 
+    }
+    body aside.sidebar { 
+      overflow-x: hidden !important; 
+    }
+
+    
     @media (max-width: 768px) {
-      .mobile-bottom-nav {
-        display: none !important;
+      body .mobile-bottom-nav { 
+        display: none !important; 
       }
     }
 
-    /* Fix left sidebar icon and text alignment */
-    .nav-item {
-      display: flex !important;
-      align-items: center !important;
-      white-space: nowrap !important;
+    
+    [data-theme="dark"] body .dispatch-panel { 
+      background: linear-gradient(145deg, var(--surface), color-mix(in srgb, var(--surface), var(--rose-600) 15%)) !important; 
+      border-color: var(--border) !important; 
     }
-
-    /* Fix role switcher menu alignment */
-    .role-option {
-      display: flex !important;
-      align-items: center !important;
-      text-align: left !important;
-    }
-
-    .role-option span {
-      white-space: nowrap !important;
+    [data-theme="dark"] body .card[style*="background"], 
+    [data-theme="dark"] body div[style*="background: var(--surface-soft)"] { 
+      background: var(--surface-soft) !important; 
+      color: var(--text) !important; 
     }
   </style>
 </head>
@@ -42,4 +84,3 @@
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>
-
