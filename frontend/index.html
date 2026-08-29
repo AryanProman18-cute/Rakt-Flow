@@ -7,12 +7,12 @@
   <meta name="description" content="RaktFlow verified blood donation and emergency logistics." />
   <title>RaktFlow — Blood logistics that move in time</title>
   
-    <style>
+      <style>
     /* =========================================
        BULLETPROOF UI OVERRIDES
        ========================================= */
 
-    /* 1. DROPDOWN CENTERING (Images 5 & 9) */
+    /* 1. DROPDOWN CENTERING */
     body .role-option { 
       align-items: center !important; 
     }
@@ -29,7 +29,7 @@
       margin: 0 !important; 
     }
 
-    /* 2. SQUISHED ICONS FIX (Images 6 & 8) */
+    /* 2. SQUISHED ICONS FIX */
     body .icon, 
     body .activity-icon, 
     body .metric-icon, 
@@ -50,20 +50,24 @@
       margin: auto !important; 
     }
 
-    /* 3. TABLET SIDEBAR TEXT BLEEDING (Image 10) 
-       Strictly targets tablets so it DOES NOT break the mobile menu */
+    /* 3. SIDEBAR TEXT BLEEDING FIX (Applied Globally) */
+    body aside.sidebar {
+      overflow: hidden !important; /* Acts as a hard wall so text never bleeds */
+    }
+    body .nav-item, 
+    body .nav-label { 
+      white-space: nowrap !important; 
+    }
+
+    /* Cleanly hide the text on tablets without breaking mobile */
     @media (min-width: 769px) and (max-width: 1180px) {
-      body aside.sidebar { 
-        width: 82px !important;
-        overflow-x: hidden !important; 
-      }
-      body .sidebar .nav-item span, 
-      body .sidebar .nav-label, 
-      body .sidebar .role-context, 
-      body .sidebar .brand-copy { 
+      body .nav-label, 
+      body .nav-item span, 
+      body .role-context, 
+      body .brand-copy { 
         display: none !important; 
       }
-      body .sidebar .nav-item { 
+      body .side-nav .nav-item { 
         justify-content: center !important; 
         padding: 0 !important; 
       }
