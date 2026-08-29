@@ -1081,12 +1081,6 @@ button .icon, a .icon, label .icon { vertical-align: middle; }
   .hero-orb, .product-window, .scan-line { animation: none !important; }
 }
 
-/* =========================================
-   ABSOLUTE UI OVERRIDES
-   ========================================= */
-
-/* 1. DROPDOWN ALIGNMENT (Image 9) 
-   Locks the icon as a perfect square and forces the text to center with it */
 button.role-option {
   display: flex !important;
   align-items: center !important;
@@ -1118,28 +1112,43 @@ button.role-option > span:not(.role-option-icon) {
 .activity-icon, .avatar, .metric-icon {
   min-width: 34px !important; 
   min-height: 34px !important;
+
+  /* ============================================================
+   FINAL DESKTOP SIDEBAR CLIPPING & TEXT TRUNCATION FIX
+   ============================================================ */
+
+/* 1. Prevent sidebar items from spilling text outside the rail */
+.sidebar .side-nav {
+  overflow: hidden;
 }
 
-/* 3. SIDEBAR TEXT BLEEDING (Image 7)
-   Clips the sidebar content so it cleanly hides instead of overlapping the main screen */
-aside.sidebar {
-  overflow-x: hidden !important;
-}
-.nav-item, .nav-label {
-  white-space: nowrap !important;
+.sidebar .nav-item {
+  position: relative;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* 4. DARK MODE GRADIENT FIX (From your previous message) 
-   Stops the dark gray and light pink from creating a muddy, washed-out background */
-[data-theme="dark"] .dispatch-panel {
-  background: linear-gradient(145deg, var(--surface), color-mix(in srgb, var(--surface), var(--rose-600) 15%)) !important;
-  border-color: var(--border) !important;
+/* 2. Ensure text labels cleanly truncate if container narrows */
+.sidebar .nav-item span {
+  display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
 }
-[data-theme="dark"] .card[style*="background"],
-[data-theme="dark"] div[style*="background: var(--surface-soft)"] {
-  background: var(--surface-soft) !important;
-  color: var(--text) !important;
+
+/* 3. Safeguard section headings inside the sidebar */
+.sidebar .nav-group-label,
+.sidebar .nav-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+
+}
+
+
 
 
 
