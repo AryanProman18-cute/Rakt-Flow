@@ -1141,9 +1141,14 @@ aside.sidebar {
   color: var(--text) !important;
 }
 
-/* Cleanly hide the sidebar section headers when collapsed */
-.sidebar .nav-label {
-  display: none !important;
+/* Fix clipped sidebar section titles */
+.sidebar .nav-label, 
+.sidebar [class*="label"],
+.sidebar span {
+  line-height: 1.4 !important;
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+  display: inline-block !important;
 }
 
 
