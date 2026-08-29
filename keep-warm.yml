@@ -1,0 +1,23 @@
+# RaktFlow keep-warm: wakes the free Render API every 10 minutes.
+# HOW TO INSTALL (2 minutes, no code changes):
+#   1. GitHub repo -> Add file -> Create new file
+#   2. Name it:  .github/workflows/keep-warm.yml
+#   3. Paste this whole file -> Commit changes.
+#   (Render stays untouched; the health check keeps the free instance warm.)
+name: Keep RaktFlow API warm
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'   # every 10 minutes
+  workflow_dispatch: {}       # allows a manual "Run workflow" button
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake the API
+        run: |
+          curl -fsS -m 40 -o /dev/null https://raktflow-api.onrender.com/api/v1/health \
+            || curl -fsS -m 40 -o /dev/null https://raktflow-api.onrender.com/api/v1/health || true
+      - name: Claim a free voucher (GitHub hosted runner quota)
+        run: echo "keep-warm ok"

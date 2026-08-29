@@ -8,7 +8,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
 from app.core.database import get_session
-from app.models.entities import BloodRequest, DonationRecord, Drive, HospitalProfile, RequestStatus
+from app.models.entities import (
+    BloodRequest,
+    DonationRecord,
+    DonorProfile,
+    Drive,
+    HospitalProfile,
+    RequestStatus,
+)
 
 router = APIRouter(prefix="/public", tags=["public"])
 
@@ -134,9 +141,15 @@ async def public_stats(session: Annotated[AsyncSession, Depends(get_session)]) -
         )
     )
     donations = await session.scalar(select(func.count()).select_from(DonationRecord))
+    registered_donors = await session.scalar(select(func.count()).select_from(DonorProfile))
+    verified_hospitals = await session.scalar(
+        select(func.count()).select_from(HospitalProfile).where(HospitalProfile.status == "VERIFIED")
+    )
     return {
         "verified_active_requests": int(active_requests or 0),
         "upcoming_drives": int(active_drives or 0),
         "recorded_donations": int(donations or 0),
+        "registered_donors": int(registered_donors or 0),
+        "verified_hospitals": int(verified_hospitals or 0),
         "as_of": now.isoformat(),
     }

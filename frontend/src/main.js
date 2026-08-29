@@ -12,6 +12,7 @@ import {
   authErrorMessage,
   completeGoogleRedirect,
   completeLegacyMagicLink,
+  getRaktFlowAuth,
   isAuthConfigured,
   observeAuth,
   registerDonorWithPassword,
@@ -22,10 +23,11 @@ import {
 } from './auth.js';
 import { getLocale, languages, loadLocale, setLocale, tr } from './i18n.js';
 import { hydrateMapplsMaps, miniMapMarkup } from './map-adapter.js';
+import { clearSession, loadSession, saveSession } from './session-cache.js';
 import { registerServiceWorker } from './register-sw.js';
 
 /** Visible build marker so a screenshot can always identify the deployed version. */
-const BUILD_TAG = 'v3.3.1-h11';
+const BUILD_TAG = 'v3.4.0-h12';
 
 const icons = {
   activity: '<path d="M3 12h4l2.5-7 5 14 2.5-7h4"/>',
@@ -104,6 +106,9 @@ const storage = (() => {
 const query = new URLSearchParams(location.search);
 const state = {
   screen: 'landing',
+  sessionCache: null,
+  reconnect: false,
+  reconnectStage: null,
   locale: getLocale(),
   theme: storage.getItem('raktflow-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
   role: storage.getItem('raktflow-role') || 'donor',
@@ -248,11 +253,45 @@ async function withBackendReady(fn) {
 }
 
 function toast(title, message, type = 'success') {
+  // Deduplicate: the same problem must never stack a column of identical
+  // toasts over the user's screen (seen with cold-start failures). An
+  // identical toast is re-surfaced and its timer restarted instead.
+  const existing = [...toastRegion.children].find(
+    item => item.dataset.key === `${type}|${title}|${message}`
+  );
+  if (existing) {
+    clearTimeout(existing._timer);
+    existing.classList.remove('toast-leaving');
+    void existing.offsetWidth; // restart the entrance animation
+    scheduleDismiss(existing);
+    return;
+  }
   const item = document.createElement('div');
-  item.className = `toast ${type === 'warning' ? 'toast-warning' : ''}`;
-  item.innerHTML = `<span class="toast-icon">${icon(type === 'warning' ? 'alert' : 'check','icon-sm')}</span><span><strong>${esc(title)}</strong><span>${esc(message)}</span></span>`;
+  item.className = `toast ${type === 'warning' ? 'toast-warning' : 'toast-success'}`;
+  item.dataset.key = `${type}|${title}|${message}`;
+  item.innerHTML = `
+    <span class="toast-icon">${icon(type === 'warning' ? 'alert' : 'check','icon-sm')}</span>
+    <span class="toast-body"><strong>${esc(title)}</strong><span class="toast-message">${esc(message)}</span></span>
+    <button class="toast-close" aria-label="Dismiss">${icon('x','icon-sm')}</button>`;
+  item.querySelector('.toast-close').addEventListener('click', () => dismissToast(item));
   toastRegion.append(item);
-  setTimeout(() => item.remove(), 5200);
+  scheduleDismiss(item);
+  while (toastRegion.children.length > 3) dismissToast(toastRegion.firstElementChild, true);
+}
+
+function scheduleDismiss(item, delay = 5600) {
+  item._timer = setTimeout(() => dismissToast(item), delay);
+}
+
+function dismissToast(item, immediate = false) {
+  if (!item || item._leaving) return;
+  item._leaving = true;
+  clearTimeout(item._timer);
+  if (immediate || !item.animate) { item.remove(); return; }
+  item.animate(
+    [{ opacity: 1, transform: 'translateY(0)' }, { opacity: 0, transform: 'translateY(6px)' }],
+    { duration: 220, easing: 'ease-in', fill: 'forwards' }
+  ).onfinish = () => item.remove();
 }
 
 function openModal({ title, subtitle = '', body, footer = '', wide = false, onOpen }) {
@@ -293,21 +332,27 @@ function metric(iconName, value, labelKey) {
 function renderLanding() {
   const stats = state.publicStats || {};
   const campaign = state.campaignLanding;
+  const counter = (key, labelKey, iconName) => `<div class="stat-cell"><span class="stat-caption">${icon(iconName,'icon-sm')} ${esc(tr(labelKey))}</span><strong class="stat-value" data-count="${Number(stats[key] || 0)}">0</strong></div>`;
   return `<div class="public-site">
     <header class="public-nav">
       <a class="public-brand" href="#top"><span class="brand-mark">${icon('activity')}</span><span>Rakt<span>Flow</span></span></a>
-      <nav class="public-links"><a href="#initiative">The initiative</a><a href="#how">How it works</a><a href="#contact">Contact</a></nav>
+      <nav class="public-links"><a href="#initiative">The initiative</a><a href="#how">How it works</a><a href="#hospital-apply">For hospitals</a><a href="#contact">Contact</a></nav>
       <div class="public-actions"><button class="btn btn-ghost" data-action="open-signin">Sign in</button><button class="btn btn-primary public-donor-button" data-action="open-register">Become a donor ${icon('chevron','icon-sm')}</button></div>
     </header>
     <main id="top">
       ${state.authError ? `<section class="public-error"><strong>Firebase sign-in succeeded, but the operational service could not finish account setup.</strong><span>${esc(state.authError)}</span><div><button class="btn btn-primary" data-action="retry-bootstrap">Retry connection</button><button class="btn btn-secondary" data-action="sign-out">Sign out</button></div><small>API: ${esc(configuredApiOrigin() || 'not configured')}</small></section>` : ''}
       ${campaign ? `<section class="campaign-invite"><span class="section-kicker">Verified drive invitation</span><h1>${esc(campaign.title)}</h1><p>${esc(campaign.description)}</p><div class="campaign-invite-meta"><span>${icon('calendar','icon-sm')} ${esc(fmtDate(campaign.drive.starts_at))}</span><span>${icon('pin','icon-sm')} ${esc(campaign.drive.venue_name || campaign.drive.address)}</span></div><button class="btn btn-primary btn-lg" data-action="campaign-register">Create account or sign in to register</button></section>` : ''}
       <section class="hero-section">
-        <div class="hero-glow hero-glow-one"></div><div class="hero-glow hero-glow-two"></div>
+        <div class="hero-glow hero-glow-one"></div><div class="hero-glow hero-glow-two"></div><div class="hero-glow hero-glow-three"></div>
         <div class="hero-copy"><div class="hero-kicker"><span class="status-dot"></span> A verified response network built for India</div><h1>Make blood donation easier to coordinate, safer to verify, and faster to act on.</h1><p class="hero-lead">RaktFlow is a community initiative connecting donors, organizers, verified hospitals and blood banks, host venues, and accountable administrators through one privacy-conscious operational system.</p><blockquote>It does not replace a blood bank, doctor, compatibility test, or emergency service. It helps the right authorized people coordinate verified work.</blockquote><div class="hero-actions"><button class="btn btn-primary btn-lg" data-action="open-register">Join as a donor ${icon('chevron')}</button><a class="btn btn-secondary btn-lg" href="#initiative">Understand the initiative</a></div><div class="hero-assurance"><span>${icon('shield','icon-sm')} Verified accounts</span><span>${icon('lock','icon-sm')} Protected donor data</span><span>${icon('activity','icon-sm')} Human clinical decisions</span></div></div>
         <div class="hero-product"><div class="product-window"><div class="product-bar"><span class="product-dots"><i></i><i></i><i></i></span><span>Live operational network</span><span class="badge badge-green">Connected</span></div><div class="product-body"><div class="product-priority"><span class="emergency-pulse">${icon('droplet')}</span><span><small>Verified coordination</small><strong>${stats.upcoming_drives ?? 0} approved drives</strong><em>${stats.recorded_donations ?? 0} clinically recorded donations</em></span></div><div class="initiative-visual"><span class="initiative-node donor-node">${icon('user')} Donor</span><span class="initiative-line"></span><span class="initiative-node">${icon('users')} Organizer</span><span class="initiative-line"></span><span class="initiative-node">${icon('hospital')} Blood bank</span></div><div class="product-metrics"><div><span>Verified needs</span><strong>${stats.verified_active_requests ?? 0}</strong></div><div><span>Upcoming drives</span><strong>${stats.upcoming_drives ?? 0}</strong></div><div><span>Recorded units</span><strong>${stats.recorded_donations ?? 0}</strong></div></div></div></div></div>
       </section>
+      <section class="live-stats-band" aria-label="Live network numbers">
+        <div class="live-stats-head"><span class="section-kicker">${esc(tr('landing.statsKicker'))}</span><span class="live-indicator"><i></i>${esc(tr('landing.statsLive'))}</span></div>
+        <div class="live-stats-grid">${counter('verified_active_requests','landing.statsNeeds','alert')}${counter('upcoming_drives','landing.statsDrives','calendar')}${counter('recorded_donations','landing.statsDonations','droplet')}${counter('registered_donors','landing.statsDonors','users')}${counter('verified_hospitals','landing.statsFacilities','hospital')}</div>
+      </section>
       <section class="public-section initiative-section" id="initiative"><div class="section-heading"><span class="section-kicker">Why RaktFlow exists</span><h2>A shared operational layer—not another unverified forwarding chain.</h2><p>Blood donation coordination often breaks across disconnected messages, paper lists, uncertain requests, and role confusion. RaktFlow creates a traceable path from a verified account to a scheduled drive, donor registration, protected pre-check, reviewer approval, on-site assessment, collection record, and accountable reconciliation.</p></div><div class="feature-grid"><article><span class="feature-number">01</span><span class="feature-icon">${icon('calendar')}</span><h3>Plan real drives</h3><p>Organizers create drives for Super Admin approval or propose a hosted drive to a venue. Approved schedules become visible to verified donors.</p></article><article><span class="feature-number">02</span><span class="feature-icon">${icon('shield')}</span><h3>Protect clinical boundaries</h3><p>Self-reported blood group and questionnaire answers are never treated as proof. A qualified reviewer controls QR eligibility and on-site staff make the final decision.</p></article><article><span class="feature-number">03</span><span class="feature-icon">${icon('chart')}</span><h3>Replace dummy totals</h3><p>Registration, check-in, clearance, collection, campaign visits, and reconciliation totals come from persisted operational records.</p></article></div></section>
+      <section class="hospital-apply-section" id="hospital-apply"><div class="hospital-apply-copy"><span class="section-kicker">${esc(tr('landing.hospitalKicker'))}</span><h2>${esc(tr('landing.hospitalTitle'))}</h2><p>${esc(tr('landing.hospitalBody'))}</p><ul class="hospital-benefits"><li>${icon('shield','icon-sm')} ${esc(tr('landing.hospitalBenefitOne'))}</li><li>${icon('file','icon-sm')} ${esc(tr('landing.hospitalBenefitTwo'))}</li><li>${icon('activity','icon-sm')} ${esc(tr('landing.hospitalBenefitThree'))}</li></ul></div><div class="hospital-apply-card card"><span class="hospital-apply-mark">${icon('hospital','icon-xl')}</span><h3>${esc(tr('landing.hospitalApplyNow'))}</h3><p>${esc(tr('landing.hospitalApplyHelp'))}</p><button class="btn btn-primary btn-lg" data-action="open-hospital-apply">${icon('hospital','icon-sm')} ${esc(tr('landing.hospitalCta'))}</button></div></section>
       <section class="safety-section" id="how"><div class="safety-mark">${icon('heart','icon-xl')}</div><div><span class="section-kicker">A careful five-portal workflow</span><h2>Each role sees its own work and every important transition is recorded.</h2><p>Donors manage their profile and registrations. Organizers operate approved drives. Hospital and blood-bank users review clinical queues and verified needs. Host venues decide proposals. Super Admin controls access and oversight.</p></div><ul><li>${icon('check','icon-sm')} No public patient identity</li><li>${icon('check','icon-sm')} No QR before approved pre-check</li><li>${icon('check','icon-sm')} No collection before on-site clearance</li></ul></section>
       <section class="public-cta"><span class="cta-orb">${icon('heart','icon-xl')}</span><div><span class="section-kicker">Start with one verified account</span><h2>Register, complete your profile, and find an approved drive.</h2></div><button class="btn btn-primary btn-lg" data-action="open-register">Become a donor</button></section>
     </main>
@@ -334,10 +379,16 @@ function renderApp() {
   const config = roleConfig[state.role];
   const nav = config.nav;
   return `<div class="app-shell">
-    <aside class="sidebar ${state.mobileMenu ? 'mobile-open' : ''}"><div class="brand"><span class="brand-mark">${icon('activity')}</span><span class="brand-copy">RaktFlow<div class="brand-sub">${esc(tr('app.verifiedNetwork'))}</div></span></div><div class="role-context"><span class="role-context-label">${esc(tr('app.currentWorkspace'))}</span><span class="role-context-value"><span class="role-dot"></span>${esc(tr(config.label))}</span></div><nav class="side-nav">${nav.map(([id,key,iconName]) => `<button class="nav-item ${state.view === id ? 'active' : ''}" data-view="${id}">${icon(iconName)}<span>${esc(tr(key))}</span></button>`).join('')}</nav><div class="sidebar-foot"><div class="network-card"><span class="network-icon">${icon('shield','icon-sm')}</span><div><strong>${esc(tr('app.secureSession'))}</strong><span>${esc(state.account?.email || '')}</span></div></div></div></aside>
-    <section class="main-shell"><header class="topbar"><button class="icon-btn mobile-menu" data-action="toggle-mobile-menu" aria-label="${esc(tr('common.menu'))}">${icon('menu')}</button><div class="page-identity"><span class="page-eyebrow">${esc(tr(config.label))}</span><h2 class="page-title">${esc(tr(nav.find(([id]) => id === state.view)?.[1] || config.label))}</h2></div><div class="top-actions"><label class="language-picker">${icon('language','icon-sm')}<select data-action="change-language" aria-label="${esc(tr('common.language'))}">${languages.map(([code,label]) => `<option value="${code}" ${state.locale === code ? 'selected' : ''}>${label}</option>`).join('')}</select></label><div class="role-switcher"><button class="btn btn-secondary role-button" data-action="toggle-role-menu">${icon(config.icon,'icon-sm')}<span>${esc(tr(config.label))}</span>${icon('chevron','icon-sm')}</button>${state.roleMenu ? `<div class="role-menu">${allowedRoles().map(([id,item]) => `<button class="role-option" data-role="${id}"><span class="role-option-icon">${icon(item.icon)}</span><span><strong>${esc(tr(item.label))}</strong></span></button>`).join('')}</div>` : ''}</div><button class="icon-btn" data-action="toggle-theme" aria-label="${esc(tr('common.theme'))}">${icon(state.theme === 'dark' ? 'sun' : 'moon')}</button><button class="account-button" data-action="open-settings" aria-label="${esc(tr('nav.settings'))}"><span class="avatar">${esc((state.profile?.full_name || state.account?.email || 'RF').slice(0,2).toUpperCase())}</span></button></div></header><main class="content" id="main-content">${renderRolePage()}<footer class="in-app-footer"><span>${icon('heart','icon-sm')} ${esc(tr('footer.madeInIndia'))}</span><span><a href="mailto:${esc(state.publicConfig.contact_email)}">${esc(state.publicConfig.contact_email)}</a> · <a href="tel:+91${esc(state.publicConfig.contact_phone)}">+91 ${esc(state.publicConfig.contact_phone)}</a></span><span class="build-tag">${BUILD_TAG}</span></footer></main></section>
+    <aside class="sidebar ${state.mobileMenu ? 'mobile-open' : ''}"><div class="brand"><span class="brand-mark">${icon('activity')}</span><span class="brand-copy">RaktFlow<div class="brand-sub">${esc(tr('app.verifiedNetwork'))}</div></span></div><div class="role-context"><span class="role-context-label">${esc(tr('app.currentWorkspace'))}</span><span class="role-context-value"><span class="role-dot"></span>${esc(tr(config.label))}</span></div><nav class="side-nav">${groupedNav(nav)}</nav><div class="sidebar-foot"><div class="network-card"><span class="network-icon">${icon('shield','icon-sm')}</span><div><strong>${esc(tr('app.secureSession'))}</strong><span>${esc(state.account?.email || '')}</span></div></div></div></aside>
+    <section class="main-shell"><header class="topbar"><button class="icon-btn mobile-menu" data-action="toggle-mobile-menu" aria-label="${esc(tr('common.menu'))}">${icon('menu')}</button><div class="page-identity"><span class="page-eyebrow">${esc(tr(config.label))}</span><h2 class="page-title">${esc(tr(nav.find(([id]) => id === state.view)?.[1] || config.label))}</h2></div><div class="top-actions"><label class="language-picker">${icon('language','icon-sm')}<select data-action="change-language" aria-label="${esc(tr('common.language'))}">${languages.map(([code,label]) => `<option value="${code}" ${state.locale === code ? 'selected' : ''}>${label}</option>`).join('')}</select></label><div class="role-switcher"><button class="btn btn-secondary role-button" data-action="toggle-role-menu">${icon(config.icon,'icon-sm')}<span>${esc(tr(config.label))}</span>${icon('chevron','icon-sm')}</button>${state.roleMenu ? `<div class="role-menu">${allowedRoles().map(([id,item]) => `<button class="role-option" data-role="${id}"><span class="role-option-icon">${icon(item.icon)}</span><span><strong>${esc(tr(item.label))}</strong></span></button>`).join('')}</div>` : ''}</div><button class="icon-btn" data-action="toggle-theme" aria-label="${esc(tr('common.theme'))}">${icon(state.theme === 'dark' ? 'sun' : 'moon')}</button><button class="account-button" data-action="open-settings" aria-label="${esc(tr('nav.settings'))}"><span class="avatar">${esc((state.profile?.full_name || state.account?.email || 'RF').slice(0,2).toUpperCase())}</span></button></div></header>${reconnectPill()}<main class="content" id="main-content">${renderRolePage()}<footer class="in-app-footer"><span>${icon('heart','icon-sm')} ${esc(tr('footer.madeInIndia'))}</span><span><a href="mailto:${esc(state.publicConfig.contact_email)}">${esc(state.publicConfig.contact_email)}</a> · <a href="tel:+91${esc(state.publicConfig.contact_phone)}">+91 ${esc(state.publicConfig.contact_phone)}</a></span><span class="build-tag">${BUILD_TAG}</span></footer></main></section>
     <nav class="mobile-bottom-nav" aria-label="${esc(tr(config.label))}">${mobileNavigation(nav).map(([id,key,iconName]) => `<button class="bottom-nav-item ${state.view === id ? 'active' : ''}" data-view="${id}">${icon(iconName)}<span>${esc(tr(key))}</span></button>`).join('')}</nav>
   </div>`;
+}
+
+function reconnectPill() {
+  if (!state.reconnect) return '';
+  const offline = state.reconnectStage === 'offline';
+  return `<div class="reconnect-pill ${offline ? 'offline' : ''}">${icon('refresh','icon-sm')}<span>${esc(tr(offline ? 'app.reconnectOffline' : 'app.reconnectLive'))}</span>${offline ? `<button class="btn btn-secondary btn-sm" data-action="reconnect-now">${esc(tr('common.retry'))}</button>` : ''}</div>`;
 }
 
 function renderRolePage() {
@@ -353,6 +404,71 @@ function pageHeader(titleKey, subtitleKey, actions = '') {
   return `<div class="page-header"><div><h1>${esc(tr(titleKey))}</h1><p>${esc(tr(subtitleKey))}</p></div>${actions ? `<div class="page-header-actions">${actions}</div>` : ''}</div>`;
 }
 
+/* ============================================================
+   V3.4 inspired UI helpers (rakt.in style: greeting, steppers,
+   stock bars, action items, grouped sidebar)
+   ============================================================ */
+
+function greeting() {
+  const hour = new Date().getHours();
+  return tr(hour < 12 ? 'greeting.morning' : hour < 17 ? 'greeting.afternoon' : 'greeting.evening');
+}
+
+function greetingHeader(subtitleKey, actions = '') {
+  const name = state.profile?.full_name || state.account?.email?.split('@')[0] || '';
+  const date = new Intl.DateTimeFormat(state.locale, { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
+  return `<section class="greeting-header"><div class="greeting-copy"><span class="greeting-date">${esc(date)}</span><h1>${esc(greeting())}${name ? `, ${esc(name.split(' ')[0])}` : ''}</h1><p>${esc(tr(subtitleKey))}</p></div>${actions ? `<div class="page-header-actions">${actions}</div>` : ''}</section>`;
+}
+
+function journeyStepper() {
+  const profile = state.profile;
+  const review = profile?.screening_review_status;
+  const steps = [
+    { key: 'donor.stepProfile', done: Boolean(profile), current: !profile, note: tr(profile ? 'donor.profileComplete' : 'donor.profileMissing') },
+    { key: 'donor.stepPrecheck', done: Boolean(review), current: !review, note: review ? statusLabel(review) : tr('donor.precheckMissing') },
+    { key: 'donor.stepPass', done: review === 'APPROVED', current: review === 'PENDING', note: tr(review === 'APPROVED' ? 'donor.passReady' : 'donor.passLocked') }
+  ];
+  return `<div class="journey-stepper">${steps.map((step, index) => `<div class="step ${step.done ? 'done' : ''} ${step.current ? 'current' : ''}"><span class="step-node">${step.done ? icon('check','icon-sm') : index + 1}</span><div class="step-copy"><strong>${esc(tr(step.key))}</strong><small>${esc(step.note)}</small></div></div>${index < steps.length - 1 ? '<span class="step-line"></span>' : ''}`).join('')}</div>`;
+}
+
+function stockByGroupMarkup() {
+  const counts = {};
+  for (const c of state.components.filter(item => ['AVAILABLE', 'RESERVED'].includes(item.status))) {
+    counts[c.blood_type] = (counts[c.blood_type] || 0) + 1;
+  }
+  const order = ['O+', 'A+', 'B+', 'AB+', 'O-', 'A-', 'B-', 'AB-'];
+  const rows = order.map(group => ({ group, count: counts[group] || 0 }));
+  const max = Math.max(1, ...rows.map(r => r.count));
+  return `<section class="card stock-by-group" style="margin-top:16px">${cardHeader('inventory.stockByGroup','inventory.stockByGroupHelp')}<div class="stock-bars">${rows.map(r => `<div class="stock-bar-row"><span class="stock-bar-label">${esc(r.group)}</span><div class="stock-bar-track"><span class="stock-bar-fill" style="width:${Math.max(3, (r.count / max) * 100)}%"></span></div><strong>${r.count || '—'}</strong></div>`).join('')}</div></section>`;
+}
+
+function hospitalAttention() {
+  const items = [];
+  const expiring = state.components.filter(c => ['EXPIRED', 'EXPIRES_WITHIN_24_HOURS', 'EXPIRES_SOON'].includes(c.expiry_state)).length;
+  const pendingReviews = state.clinicalQueue.filter(i => i.review_status === 'PENDING').length;
+  const openRequests = state.hospitalRequests.filter(r => ['PENDING', 'VERIFIED'].includes(r.status)).length;
+  if (expiring) items.push({ count: expiring, text: tr('hospital.attentionStock'), type: tr('hospital.attentionTypeStock'), priority: 'High', priorityLabel: tr('hospital.attentionHigh'), age: tr('hospital.attentionNow') });
+  if (pendingReviews) items.push({ count: pendingReviews, text: tr('hospital.attentionReview'), type: tr('hospital.attentionTypeLab'), priority: 'Medium', priorityLabel: tr('hospital.attentionMedium'), age: tr('hospital.attentionToday') });
+  if (openRequests) items.push({ count: openRequests, text: tr('hospital.attentionRequests'), type: tr('hospital.attentionTypeRequests'), priority: 'Medium', priorityLabel: tr('hospital.attentionMedium'), age: tr('hospital.attentionToday') });
+  if (!items.length) return '';
+  return `<section class="card attention-card" style="margin-top:18px">${cardHeader('hospital.attentionTitle','hospital.attentionHelp')}<div class="attention-list">${items.map(item => `<div class="attention-row"><strong>${item.count} ${esc(item.text)}</strong><span class="attention-type">${esc(item.type)}</span><span class="dot-badge ${item.priority === 'High' ? 'dot-rose' : 'dot-amber'}">${esc(item.priorityLabel)}</span><small>${esc(item.age)}</small></div>`).join('')}</div></section>`;
+}
+
+function groupedNav(nav) {
+  const settingsIndex = nav.findIndex(([id]) => id === 'settings');
+  const groups = [];
+  nav.forEach((item, index) => {
+    if (index === 0) groups.push({ label: tr('nav.groupHome'), items: [item] });
+    else if (index === settingsIndex) groups.push({ label: tr('nav.groupAccount'), items: [item] });
+    else {
+      const last = groups[groups.length - 1];
+      if (last && last.label === tr('nav.groupWork')) last.items.push(item);
+      else groups.push({ label: tr('nav.groupWork'), items: [item] });
+    }
+  });
+  return groups.map(group => `<div class="nav-group"><span class="nav-group-label">${esc(group.label)}</span>${group.items.map(([id, key, iconName]) => `<button class="nav-item ${state.view === id ? 'active' : ''}" data-view="${id}">${icon(iconName)}<span>${esc(tr(key))}</span></button>`).join('')}</div>`).join('');
+}
+
 function renderSettings() {
   const roles = allowedRoles();
   const preferences = state.preferences || {};
@@ -363,7 +479,7 @@ function renderSettings() {
       <section class="card settings-card">${cardHeader('settings.appearance','settings.appearanceHelp')}<div class="card-body settings-options"><button class="setting-choice ${appearance === 'LIGHT' ? 'active' : ''}" data-action="set-appearance" data-appearance="LIGHT">${icon('sun')}<span><strong>${esc(tr('settings.light'))}</strong><small>${esc(tr('settings.lightHelp'))}</small></span>${appearance === 'LIGHT' ? icon('check','icon-sm') : ''}</button><button class="setting-choice ${appearance === 'DARK' ? 'active' : ''}" data-action="set-appearance" data-appearance="DARK">${icon('moon')}<span><strong>${esc(tr('settings.dark'))}</strong><small>${esc(tr('settings.darkHelp'))}</small></span>${appearance === 'DARK' ? icon('check','icon-sm') : ''}</button><button class="setting-choice ${appearance === 'SYSTEM' ? 'active' : ''}" data-action="set-appearance" data-appearance="SYSTEM">${icon('settings')}<span><strong>${esc(tr('settings.system'))}</strong><small>${esc(tr('settings.systemHelp'))}</small></span>${appearance === 'SYSTEM' ? icon('check','icon-sm') : ''}</button></div></section>
       <section class="card settings-card">${cardHeader('settings.language','settings.languageHelp')}<div class="card-body"><label class="field"><span>${esc(tr('common.language'))}</span><select class="select" data-action="change-language">${languages.map(([code,label]) => `<option value="${code}" ${state.locale === code ? 'selected' : ''}>${label}</option>`).join('')}</select></label><p class="muted">${esc(tr('settings.authenticatedLanguage'))}</p></div></section>
       <section class="card settings-card span-2">${cardHeader('settings.workspaces','settings.workspacesHelp')}<div class="card-body settings-workspaces">${roles.map(([id,item]) => `<button class="workspace-choice ${state.role === id ? 'active' : ''}" data-role="${id}">${icon(item.icon)}<span><strong>${esc(tr(item.label))}</strong><small>${esc(tr('settings.serverAssigned'))}</small></span>${state.role === id ? icon('check','icon-sm') : icon('chevron','icon-sm')}</button>`).join('')}</div></section>
-      <section class="card settings-card">${cardHeader('settings.account','settings.accountHelp')}<div class="card-body settings-account"><span class="account-avatar">${esc((state.profile?.full_name || state.account?.email || 'RF').slice(0,2).toUpperCase())}</span><div><strong>${esc(state.profile?.full_name || state.account?.email || '')}</strong><small>${esc(state.account?.email || '')}</small></div>${state.account?.roles?.includes('ROLE_DONOR') ? `<button class="btn btn-secondary" data-action="open-profile">${icon('user','icon-sm')} ${esc(tr(state.profile ? 'common.editProfile' : 'common.completeProfile'))}</button>` : ''}<button class="btn btn-secondary" data-action="sign-out">${esc(tr('common.signOut'))}</button></div></section>
+      <section class="card settings-card">${cardHeader('settings.account','settings.accountHelp')}<div class="card-body settings-account"><span class="account-avatar">${esc((state.profile?.full_name || state.account?.email || 'RF').slice(0,2).toUpperCase())}</span><div><strong>${esc(state.profile?.full_name || state.account?.email || '')}</strong><small>${esc(state.account?.email || '')}</small></div>${state.account?.roles?.includes('ROLE_DONOR') ? `<button class="btn btn-secondary" data-action="open-profile">${icon('user','icon-sm')} ${esc(tr(state.profile ? 'common.editProfile' : 'common.completeProfile'))}</button>` : ''}${!state.account?.roles?.includes('ROLE_HOSPITAL') && !state.hospitalProfile ? `<button class="btn btn-secondary" data-action="open-hospital-apply">${icon('hospital','icon-sm')} ${esc(tr('hospital.apply'))}</button>` : ''}<button class="btn btn-secondary" data-action="sign-out">${esc(tr('common.signOut'))}</button></div></section>
       <section class="card settings-card">${cardHeader('settings.notifications','settings.notificationsHelp')}<div class="card-body preference-list">${toggle('in_app_notifications','settings.inApp','settings.inAppHelp')}${toggle('email_notifications','settings.email','settings.emailHelp')}${toggle('sms_notifications','settings.sms','settings.smsHelp')}</div></section>
       <section class="card settings-card span-2">${cardHeader('settings.privacy','settings.privacyHelp')}<div class="card-body preference-list">${toggle('rare_blood_opt_in','settings.rareBlood','settings.rareBloodHelp')}${toggle('location_matching_opt_in','settings.locationMatching','settings.locationMatchingHelp')}${toggle('donation_lifecycle_opt_in','settings.lifecycle','settings.lifecycleHelp')}<div class="setting-notes"><p>${icon('lock','icon-sm')} ${esc(tr('settings.qrPrivacy'))}</p><p>${icon('shield','icon-sm')} ${esc(tr('settings.clinicalPrivacy'))}</p></div><div class="privacy-actions"><button class="btn btn-secondary" data-action="download-personal-data">${icon('download','icon-sm')} ${esc(tr('privacy.export'))}</button><button class="btn btn-secondary" data-action="privacy-request">${icon('file','icon-sm')} ${esc(tr('privacy.request'))}</button></div>${state.privacyRequests.length ? `<div class="privacy-request-list"><strong>${esc(tr('privacy.myRequests'))}</strong>${state.privacyRequests.slice(0,5).map(item => `<p><span>${esc(domainLabel('privacyRequest',item.request_type))}</span>${statusBadge(item.status)}<small>${esc(fmtDate(item.created_at))}</small></p>`).join('')}</div>` : ''}</div></section>
     </div>`;
@@ -377,15 +493,28 @@ function renderDonor() {
   return donorHome();
 }
 
+function hospitalApplyStrip() {
+  const profile = state.hospitalProfile;
+  if (profile?.status === 'PENDING') {
+    return `<section class="hospital-apply-strip"><span class="hospital-apply-mark small">${icon('hospital','icon-sm')}</span><div><strong>${esc(tr('hospital.applyPendingTitle'))}</strong><span>${esc(tr('hospital.pendingHelp'))}</span></div>${statusBadge(profile.status)}</section>`;
+  }
+  if (profile?.status === 'VERIFIED') {
+    return `<section class="hospital-apply-strip verified"><span class="hospital-apply-mark small">${icon('hospital','icon-sm')}</span><div><strong>${esc(profile.facility_name)}</strong><span>${esc(tr('hospital.verifiedNotice'))}</span></div>${statusBadge(profile.status)}</section>`;
+  }
+  return `<section class="hospital-apply-strip"><span class="hospital-apply-mark small">${icon('hospital','icon-sm')}</span><div><strong>${esc(tr('landing.hospitalApplyNow'))}</strong><span>${esc(tr('landing.hospitalApplyHelp'))}</span></div><button class="btn btn-secondary btn-sm" data-action="open-hospital-apply">${esc(tr('landing.hospitalCta'))}</button></section>`;
+}
+
 function donorHome() {
   const profile = state.profile;
   const review = profile?.screening_review_status;
   const profileComplete = Boolean(profile);
   const qrReady = review === 'APPROVED' && profile?.blood_type !== 'UNKNOWN';
   const upcoming = state.registrations.filter(item => ['REGISTERED','CHECKED_IN'].includes(item.status));
-  return `${pageHeader('donor.homeTitle','donor.homeSubtitle',button('open-profile',profile ? 'common.editProfile' : 'common.completeProfile','user','btn-secondary') + button('open-screening','donor.precheckAction','shield','btn-secondary'))}
+  return `${greetingHeader('donor.homeSubtitle',button('open-profile',profile ? 'common.editProfile' : 'common.completeProfile','user','btn-secondary') + button('open-screening','donor.precheckAction','shield','btn-secondary'))}
     ${state.campaignLanding ? `<section class="emergency-strip"><span class="emergency-pulse">${icon('calendar')}</span><span class="emergency-copy"><strong>${esc(state.campaignLanding.title)}</strong><span>${esc(fmtDate(state.campaignLanding.drive.starts_at))} · ${esc(state.campaignLanding.drive.venue_name)}</span></span><button class="btn" data-action="register-campaign">${esc(tr('donor.registerNow'))}</button></section>` : ''}
+    ${journeyStepper()}
     <div class="journey-grid"><article class="journey-card ${profileComplete ? 'complete' : 'current'}"><span class="journey-number">1</span><div><strong>${esc(tr('donor.stepProfile'))}</strong><p>${esc(profileComplete ? tr('donor.profileComplete') : tr('donor.profileMissing'))}</p>${profile ? `<span class="badge badge-neutral">${esc(profile.blood_type)} · ${esc(profile.city || '')}</span>` : ''}</div><button class="btn btn-secondary btn-sm" data-action="open-profile">${esc(tr(profileComplete ? 'common.edit' : 'common.start'))}</button></article><article class="journey-card ${review === 'PENDING' ? 'current' : review ? 'complete' : ''}"><span class="journey-number">2</span><div><strong>${esc(tr('donor.stepPrecheck'))}</strong><p>${esc(review ? statusLabel(review) : tr('donor.precheckMissing'))}</p>${review === 'PENDING' ? `<small class="muted">${esc(tr('donor.refreshReviewHelp'))}</small>` : ''}${profile?.eligible_on ? `<div class="eligibility-countdown"><strong>${esc(tr('screening.earliestReview'))}: ${esc(new Intl.DateTimeFormat(state.locale,{dateStyle:'medium'}).format(new Date(`${profile.eligible_on}T00:00:00`)))}</strong><small>${esc((profile.deferral_reason_codes || []).map(code => statusLabel(code)).join(', '))}</small></div>` : ''}</div><button class="btn btn-secondary btn-sm" data-action="${review === 'PENDING' ? 'refresh-eligibility' : 'open-screening'}">${esc(tr(review === 'PENDING' ? 'common.refresh' : 'donor.precheckAction'))}</button></article><article class="journey-card ${qrReady ? 'complete' : ''}"><span class="journey-number">3</span><div><strong>${esc(tr('donor.stepPass'))}</strong><p>${esc(qrReady ? tr('donor.passReady') : tr('donor.passLocked'))}</p></div><button class="btn btn-secondary btn-sm" data-action="open-pass" ${qrReady ? '' : 'disabled'}>${esc(tr('donor.showPass'))}</button></article></div>
+    ${hospitalApplyStrip()}
     <div class="grid grid-3"><section class="card span-2">${cardHeader('donor.upcomingRegistrations','donor.upcomingRegistrationsHelp',button('go-drives','common.browse','calendar','btn-ghost btn-sm'))}<div class="card-body activity-list">${upcoming.length ? upcoming.slice(0,5).map(item => `<div class="activity-item"><span class="activity-icon">${icon('calendar')}</span><span class="activity-copy"><strong>${esc(item.drive.name)}</strong><span>${esc(fmtDate(item.drive.starts_at))} · ${esc(item.drive.venue_name || item.drive.address)}</span></span>${statusBadge(item.status)}</div>`).join('') : emptyState('calendar','donor.noRegistrations','donor.noRegistrationsHelp',button('go-drives','common.findDrive','pin','btn-primary btn-sm'))}</div></section><aside class="stack"><article class="card">${cardHeader('donor.profileSummary','donor.profileSummaryHelp')}<div class="card-body profile-summary"><div><span>${esc(tr('common.reference'))}</span><strong>${esc(profile?.reference_code || tr('common.notSet'))}</strong></div><div><span>${esc(tr('common.name'))}</span><strong>${esc(profile?.full_name || tr('common.notSet'))}</strong></div><div><span>${esc(tr('common.bloodGroup'))}</span><strong>${esc(profile?.blood_type || tr('common.notSet'))}</strong></div><div><span>${esc(tr('common.city'))}</span><strong>${esc(profile?.city || tr('common.notSet'))}</strong></div></div></article><article class="card">${cardHeader('donor.liveNeeds','donor.liveNeedsHelp')}<div class="card-body"><strong class="big-count">${state.publicRequests.length}</strong><p class="muted">${esc(tr('donor.verifiedNeedsCount'))}</p><button class="btn btn-secondary" data-view="needs">${esc(tr('common.view'))}</button></div></article></aside></div>`;
 }
 
@@ -448,7 +577,7 @@ function driveSelector() {
 function organizerOverview() {
   const drive = activeDrive();
   const rec = state.reconciliation;
-  return `${pageHeader('organizer.overviewTitle','organizer.overviewSubtitle',button('create-drive','organizer.createDrive','plus') + button('create-proposal','organizer.proposeDrive','mail','btn-secondary'))}<div class="workflow-explainer"><div><span>1</span><strong>${esc(tr('organizer.createDrive'))}</strong><p>${esc(tr('organizer.createDriveHelp'))}</p></div><div><span>2</span><strong>${esc(tr('organizer.proposeDrive'))}</strong><p>${esc(tr('organizer.proposeDriveHelp'))}</p></div></div><div class="grid grid-4 metric-grid-mobile">${metric('calendar',String(state.drives.length),'organizer.totalDrives')}${metric('users',String(rec?.registrations || 0),'organizer.registrations')}${metric('scan',String(rec?.checkins || 0),'organizer.checkins')}${metric('droplet',String(rec?.units_logged || 0),'organizer.unitsLogged')}</div><article class="card" style="margin-top:18px">${cardHeader('organizer.activeDrive','organizer.activeDriveHelp',driveSelector())}<div class="card-body">${drive ? `<div class="drive-summary"><div><h2>${esc(drive.name)}</h2><p>${esc(drive.venue_name || drive.address)}</p><p>${esc(fmtDate(drive.starts_at))}</p></div>${statusBadge(drive.status)}</div><div class="progress rose"><span style="width:${Math.min(100,rec?.target_completion_percent || 0)}%"></span></div><p class="muted">${esc(tr('organizer.approvalNotice'))}</p>` : emptyState('calendar','organizer.noDrives','organizer.noDrivesHelp',button('create-drive','organizer.createDrive','plus'))}</div></article>`;
+  return `${greetingHeader('organizer.overviewSubtitle',button('create-drive','organizer.createDrive','plus') + button('create-proposal','organizer.proposeDrive','mail','btn-secondary'))}<div class="workflow-explainer"><div><span>1</span><strong>${esc(tr('organizer.createDrive'))}</strong><p>${esc(tr('organizer.createDriveHelp'))}</p></div><div><span>2</span><strong>${esc(tr('organizer.proposeDrive'))}</strong><p>${esc(tr('organizer.proposeDriveHelp'))}</p></div></div><div class="grid grid-4 metric-grid-mobile">${metric('calendar',String(state.drives.length),'organizer.totalDrives')}${metric('users',String(rec?.registrations || 0),'organizer.registrations')}${metric('scan',String(rec?.checkins || 0),'organizer.checkins')}${metric('droplet',String(rec?.units_logged || 0),'organizer.unitsLogged')}</div><article class="card" style="margin-top:18px">${cardHeader('organizer.activeDrive','organizer.activeDriveHelp',driveSelector())}<div class="card-body">${drive ? `<div class="drive-summary"><div><h2>${esc(drive.name)}</h2><p>${esc(drive.venue_name || drive.address)}</p><p>${esc(fmtDate(drive.starts_at))}</p></div>${statusBadge(drive.status)}</div><div class="progress rose"><span style="width:${Math.min(100,rec?.target_completion_percent || 0)}%"></span></div><p class="muted">${esc(tr('organizer.approvalNotice'))}</p>` : emptyState('calendar','organizer.noDrives','organizer.noDrivesHelp',button('create-drive','organizer.createDrive','plus'))}</div></article>`;
 }
 
 function organizerDrives() {
@@ -524,7 +653,7 @@ function hospitalOverview() {
   if (profile?.status === 'PENDING') notice = `<div class="config-warning">${icon('alert','icon-sm')} ${esc(tr('hospital.pendingNotice'))} <strong>${esc(tr('hospital.pendingHelp'))}</strong></div><div class="evidence-row"><span>${icon('file','icon-sm')} ${state.hospitalDocuments.length} ${esc(tr('hospital.documentsStored'))}</span>${profile.status === 'PENDING' ? `<button class="btn btn-secondary btn-sm" data-action="upload-hospital-evidence" data-hospital-id="${profile.id}">${esc(tr('hospital.addEvidence'))}</button>` : ''}</div>`;
   if (profile?.status === 'REJECTED') notice = `<div class="config-warning">${icon('alert','icon-sm')} ${esc(tr('hospital.rejectedNotice'))}${profile.rejection_reason ? ` <strong>${esc(profile.rejection_reason)}</strong>` : ''}</div><button class="btn btn-primary" data-action="apply-hospital">${esc(tr('hospital.resubmit'))}</button>`;
   if (profile?.status === 'VERIFIED') notice = `<div class="config-note">${icon('shield','icon-sm')} ${esc(tr('hospital.verifiedNotice'))}</div>`;
-  return `${pageHeader('hospital.overviewTitle','hospital.overviewSubtitle',profile ? button('refresh-hospital','common.refresh','refresh','btn-secondary') : button('apply-hospital','hospital.apply','hospital'))}${profile ? `<section class="card card-pad"><div class="drive-title-row"><div><span class="section-label">${esc(tr('hospital.facility'))}</span><h2>${esc(profile.facility_name)}</h2><p>${esc(profile.address)} · ${esc(profile.city)}, ${esc(profile.state)}</p></div>${statusBadge(profile.status)}</div>${notice}</section>` : `<section class="card">${emptyState('hospital','hospital.noApplication','hospital.noApplicationHelp',button('apply-hospital','hospital.apply','plus'))}</section>`}<div class="grid grid-3" style="margin-top:18px">${metric('shield',String(state.clinicalQueue.filter(item => item.review_status === 'PENDING').length),'hospital.pendingReviews')}${metric('inventory',String(state.components.filter(item => ['AVAILABLE','RESERVED'].includes(item.status)).length),'hospital.inventoryUnits')}${metric('file',String(state.hospitalRequests.filter(item => ['PENDING','VERIFIED'].includes(item.status)).length),'hospital.activeRequests')}</div>`;
+  return `${greetingHeader('hospital.overviewSubtitle',profile ? button('refresh-hospital','common.refresh','refresh','btn-secondary') : button('apply-hospital','hospital.apply','hospital'))}${profile ? `<section class="card card-pad"><div class="drive-title-row"><div><span class="section-label">${esc(tr('hospital.facility'))}</span><h2>${esc(profile.facility_name)}</h2><p>${esc(profile.address)} · ${esc(profile.city)}, ${esc(profile.state)}</p></div>${statusBadge(profile.status)}</div>${notice}</section>` : `<section class="card">${emptyState('hospital','hospital.noApplication','hospital.noApplicationHelp',button('apply-hospital','hospital.apply','plus'))}</section>`}<div class="grid grid-3" style="margin-top:18px">${metric('shield',String(state.clinicalQueue.filter(item => item.review_status === 'PENDING').length),'hospital.pendingReviews')}${metric('inventory',String(state.components.filter(item => ['AVAILABLE','RESERVED'].includes(item.status)).length),'hospital.inventoryUnits')}${metric('file',String(state.hospitalRequests.filter(item => ['PENDING','VERIFIED'].includes(item.status)).length),'hospital.activeRequests')}</div>${hospitalAttention()}`;
 }
 
 function hospitalClinical() {
@@ -543,7 +672,7 @@ function hospitalInventory() {
     grouped.set(key,row);
   }
   const precise=[...grouped.values()];
-  return `${pageHeader('inventory.title','inventory.subtitle',button('receive-component','components.receive','scan') + button('inventory-event','inventory.record','plus','btn-secondary'))}<div class="config-note">${icon('shield','icon-sm')} ${esc(tr('inventory.perUnitNotice'))}</div><div class="inventory-grid" style="margin-top:16px">${precise.length ? precise.map(item => `<article class="blood-stock"><div class="blood-stock-top"><span class="blood-stock-type">${esc(item.blood_type)}</span><span class="blood-stock-units">${item.available} ${esc(tr('common.units'))}</span></div><div class="progress ${item.expiring ? 'rose' : ''}"><span style="width:${Math.min(100,(item.available / Math.max(item.available+item.reserved,1))*100)}%"></span></div><small>${esc(domainLabel('component',item.component_type))} · ${item.reserved} ${esc(statusLabel('RESERVED'))} · ${item.expiring} ${esc(tr('components.soon'))}</small></article>`).join('') : emptyState('inventory','inventory.empty','inventory.emptyHelp',button('receive-component','components.receive','scan'))}</div><section style="margin-top:22px">${cardHeader('inventory.aggregateLedger','inventory.aggregateLedgerHelp')}<div class="card-body"><p class="muted">${esc(tr('inventory.aggregateLedgerNotice'))}</p>${state.inventory.length ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>${esc(tr('common.bloodGroup'))}</th><th>${esc(tr('common.component'))}</th><th>${esc(tr('common.units'))}</th></tr></thead><tbody>${state.inventory.map(item => `<tr><td>${esc(item.blood_type)}</td><td>${esc(domainLabel('component',item.component_type))}</td><td>${item.units_available-item.units_reserved}</td></tr>`).join('')}</tbody></table></div>` : ''}</div></section>`;
+  return `${pageHeader('inventory.title','inventory.subtitle',button('receive-component','components.receive','scan') + button('inventory-event','inventory.record','plus','btn-secondary'))}<div class="config-note">${icon('shield','icon-sm')} ${esc(tr('inventory.perUnitNotice'))}</div>${stockByGroupMarkup()}<div class="inventory-grid" style="margin-top:16px">${precise.length ? precise.map(item => `<article class="blood-stock"><div class="blood-stock-top"><span class="blood-stock-type">${esc(item.blood_type)}</span><span class="blood-stock-units">${item.available} ${esc(tr('common.units'))}</span></div><div class="progress ${item.expiring ? 'rose' : ''}"><span style="width:${Math.min(100,(item.available / Math.max(item.available+item.reserved,1))*100)}%"></span></div><small>${esc(domainLabel('component',item.component_type))} · ${item.reserved} ${esc(statusLabel('RESERVED'))} · ${item.expiring} ${esc(tr('components.soon'))}</small></article>`).join('') : emptyState('inventory','inventory.empty','inventory.emptyHelp',button('receive-component','components.receive','scan'))}</div><section style="margin-top:22px">${cardHeader('inventory.aggregateLedger','inventory.aggregateLedgerHelp')}<div class="card-body"><p class="muted">${esc(tr('inventory.aggregateLedgerNotice'))}</p>${state.inventory.length ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>${esc(tr('common.bloodGroup'))}</th><th>${esc(tr('common.component'))}</th><th>${esc(tr('common.units'))}</th></tr></thead><tbody>${state.inventory.map(item => `<tr><td>${esc(item.blood_type)}</td><td>${esc(domainLabel('component',item.component_type))}</td><td>${item.units_available-item.units_reserved}</td></tr>`).join('')}</tbody></table></div>` : ''}</div></section>`;
 }
 
 function hospitalComponents() {
@@ -596,7 +725,7 @@ function renderAdmin() {
 
 function adminOverview() {
   const data = state.adminOverview || {};
-  return `${pageHeader('admin.overviewTitle','admin.overviewSubtitle',button('refresh-admin','common.refresh','refresh','btn-secondary'))}<div class="grid grid-4 metric-grid-mobile">${metric('users',String(data.users || 0),'admin.users')}${metric('hospital',String(data.pending_hospitals || 0),'admin.pendingHospitals')}${metric('calendar',String(data.open_drives || 0),'admin.openDrives')}${metric('droplet',String(data.donations || 0),'admin.donations')}</div><div class="grid grid-3" style="margin-top:18px">${metric('mail',String(data.pending_invitations || 0),'admin.pendingInvites')}${metric('link',String(data.campaigns || 0),'admin.campaigns')}${metric('file',String(data.blood_requests || 0),'admin.requests')}</div>`;
+  return `${greetingHeader('admin.overviewSubtitle',button('refresh-admin','common.refresh','refresh','btn-secondary'))}<div class="grid grid-4 metric-grid-mobile">${metric('users',String(data.users || 0),'admin.users')}${metric('hospital',String(data.pending_hospitals || 0),'admin.pendingHospitals')}${metric('calendar',String(data.open_drives || 0),'admin.openDrives')}${metric('droplet',String(data.donations || 0),'admin.donations')}</div><div class="grid grid-3" style="margin-top:18px">${metric('mail',String(data.pending_invitations || 0),'admin.pendingInvites')}${metric('link',String(data.campaigns || 0),'admin.campaigns')}${metric('file',String(data.blood_requests || 0),'admin.requests')}</div>`;
 }
 
 function adminUsers() {
@@ -639,12 +768,51 @@ function adminAudit() {
   return `${pageHeader('admin.auditTitle','admin.auditSubtitle',button('refresh-admin','common.refresh','refresh','btn-secondary'))}<article class="card"><div class="table-wrap"><table class="data-table"><thead><tr><th>${esc(tr('common.date'))}</th><th>${esc(tr('admin.event'))}</th><th>${esc(tr('admin.resource'))}</th><th>${esc(tr('common.reference'))}</th></tr></thead><tbody>${state.audit.length ? state.audit.map(item => `<tr><td>${esc(fmtDate(item.occurred_at))}</td><td>${esc(domainLabel('auditAction', item.action))}</td><td>${esc(domainLabel('resource', item.resource_type))}</td><td>${esc(item.resource_id || '')}</td></tr>`).join('') : `<tr><td colspan="4">${emptyState('activity','admin.noAudit','admin.noAuditHelp')}</td></tr>`}</tbody></table></div></article>`;
 }
 
+function animateCounters() {
+  const cells = document.querySelectorAll('.stat-value[data-count]');
+  cells.forEach(cell => {
+    if (cell.dataset.counted) return;
+    const target = Number(cell.dataset.count || 0);
+    const start = () => {
+      cell.dataset.counted = '1';
+      const duration = 900;
+      const t0 = window.performance.now();
+      const step = now => {
+        const progress = Math.min(1, (now - t0) / duration);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        cell.textContent = Math.round(target * eased).toLocaleString();
+        if (progress < 1) window.requestAnimationFrame(step);
+      };
+      window.requestAnimationFrame(step);
+    };
+    const observer = new window.IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting)) { observer.disconnect(); start(); }
+    }, { threshold: 0.4 });
+    observer.observe(cell);
+  });
+}
+
 function render() {
   document.body.classList.toggle('landing-mode', state.screen === 'landing');
   if (state.screen === 'loading') app.innerHTML = renderLoading();
   else if (state.screen === 'app') app.innerHTML = renderApp();
   else app.innerHTML = renderLanding();
+  if (state.screen === 'landing') window.requestAnimationFrame(animateCounters);
   queueMicrotask(hydrateMapplsMaps);
+}
+
+function openHospitalApply() {
+  // The hospital application is linked to the signed-in verified account.
+  if (!state.account) {
+    toast(tr('hospital.apply'), tr('hospital.applySignInHelp'), 'warning');
+    authModal('register');
+    return;
+  }
+  if (state.hospitalProfile?.status === 'PENDING') {
+    toast(tr('hospital.apply'), tr('success.hospitalPending'), 'warning');
+    return;
+  }
+  hospitalApplicationModal();
 }
 
 function authModal(mode = 'signin', initialEmail = '') {
@@ -976,7 +1144,7 @@ async function submitAuth(form, type) {
 }
 
 async function bootstrapSession(user) {
-  state.screen = 'loading'; state.loadingKey = 'loading.workspace'; state.authError = ''; render();
+  if (!state.sessionCache) { state.screen = 'loading'; state.loadingKey = 'loading.workspace'; state.authError = ''; render(); }
   let account = null;
   // A cold Render service can refuse the first connection while it wakes up.
   // Retry transport failures (not API rejections) a couple of times with a
@@ -1000,18 +1168,70 @@ async function bootstrapSession(user) {
     if (requestedRole && available.some(([id]) => id === requestedRole)) state.role = requestedRole;
     state.view = query.get('view') || roleConfig[state.role].landing;
     await loadAuthenticatedData();
+    state.reconnect = false; state.reconnectStage = null;
     state.screen = 'app';
     render();
+    saveSession({
+      userUid: user.uid,
+      account,
+      profile: state.profile,
+      role: state.role,
+      view: state.view,
+    });
     if (state.campaignLanding && state.account.roles.includes('ROLE_DONOR')) {
       state.role = 'donor'; state.view = 'drives'; render();
       toast(tr('campaign.invitationReady'), tr('campaign.invitationReadyHelp'));
     }
   } catch (error) {
     state.authUser = user;
+    // A slow/waking backend must never eject a signed-in user to the login
+    // screen after a refresh. Enter the cached app and reconnect in the
+    // background; only fall back to the landing page when there is no cache.
+    if (state.sessionCache && state.sessionCache.account) {
+      state.reconnect = true; state.reconnectStage = 'slow';
+      state.screen = 'app';
+      render();
+      startReconnectLoop(user.uid);
+      return;
+    }
     state.authError = friendlyError(error);
     state.screen = 'landing';
     render();
   }
+}
+
+function startReconnectLoop(uid, attempts = 0) {
+  if (attempts > 6 || state.screen !== 'app' || !state.reconnect) return;
+  setTimeout(async () => {
+    try {
+      const auth = getRaktFlowAuth();
+      const current = auth.currentUser;
+      if (current && current.uid === uid) {
+        await bootstrapSession(current);
+        return;
+      }
+      state.reconnectStage = 'offline';
+      state.account = state.sessionCache?.account || null;
+      render();
+      startReconnectLoop(uid, attempts + 1);
+    } catch {
+      state.reconnectStage = 'offline';
+      render();
+      startReconnectLoop(uid, attempts + 1);
+    }
+  }, 15000);
+}
+
+function enableReconnectMode() {
+  if (!state.sessionCache?.account) return false;
+  state.reconnect = true; state.reconnectStage = 'slow';
+  state.screen = 'app';
+  state.account = state.sessionCache.account;
+  state.profile = state.sessionCache.profile || null;
+  render();
+  const uid = state.sessionCache.userUid;
+  getRaktFlowAuth().currentUser?.uid && startReconnectLoop(uid);
+  return true;
 }
 
 async function safeApi(path, fallback = null) {
@@ -1617,10 +1837,26 @@ function stopInlineScanner() {
   setScannerStatus(tr('intake.cameraIdle'));
 }
 
+async function handleScanToken(token) {
+  setScannerStatus(tr('intake.codeFound'));
+  const accepted = await processQrToken(token, { fromScanner: true });
+  if (accepted) { stopInlineScanner(); }
+  else { setScannerStatus(tr('intake.scanRetry'), true); }
+}
+
+function scheduleScanHint(timerRef) {
+  // If nothing was detected for a while, point the operator at the photo-scan
+  // fallback instead of leaving them staring at an idle camera.
+  timerRef.timeout = setTimeout(() => {
+    const status = document.querySelector('#scanner-status');
+    if (status && !status.dataset.done) setScannerStatus(tr('intake.notDetectedHelp'), true);
+  }, 14000);
+}
+
 async function startCamera() {
   if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) { toast(tr('error.title'), tr('intake.secureCamera'), 'warning'); return; }
   let stream;
-  try { stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:'environment' } }, audio:false }); }
+  try { stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:'environment' }, width:{ ideal:1280 }, height:{ ideal:720 } }, audio:false }); }
   catch (error) { console.warn(error); toast(tr('error.title'), tr('intake.cameraPermission'), 'warning'); return; }
   const video = document.querySelector('#qr-video');
   if (!video) { stream.getTracks().forEach(track => track.stop()); return; }
@@ -1630,27 +1866,61 @@ async function startCamera() {
   if (stopBtn) stopBtn.hidden = false;
   video.srcObject = stream; video.play().catch(() => null);
   setScannerStatus(tr('intake.holdQr'));
-  const { BrowserQRCodeReader, DecodeHintType } = await import('@zxing/browser');
-  const reader = new BrowserQRCodeReader(new Map([[DecodeHintType.TRY_HARDER, true]]), { delayBetweenScanAttempts: 250 });
   let done = false;
+  const hint = { timeout: null };
+  const finish = () => { if (hint.timeout) clearTimeout(hint.timeout); stream.getTracks().forEach(track => track.stop()); };
+
+  // Native BarcodeDetector (iPadOS 17+/Safari 17, Android Chrome) is fast and
+  // reliable on WebKit; ZXing is the fallback for older engines.
+  if ('BarcodeDetector' in window) {
+    try {
+      const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+      let timer = null;
+      const detectLoop = async () => {
+        if (done) return;
+        if (video.readyState >= 2 && video.videoWidth > 0) {
+          try {
+            const codes = await detector.detect(video);
+            const token = codes?.[0]?.rawValue;
+            if (token) {
+              await handleScanToken(token);
+              return;
+            }
+          } catch { /* frame not ready; keep looping */ }
+        }
+        timer = setTimeout(detectLoop, 160);
+      };
+      timer = setTimeout(detectLoop, 250);
+      inlineScannerCleanup = () => { done = true; clearTimeout(timer); finish(); };
+      scheduleScanHint(hint);
+      return;
+    } catch (error) { console.warn('BarcodeDetector unavailable, using ZXing', error); }
+  }
   try {
+    const { BrowserQRCodeReader, DecodeHintType } = await import('@zxing/browser');
+    const reader = new BrowserQRCodeReader(new Map([[DecodeHintType.TRY_HARDER, true]]), { delayBetweenScanAttempts: 250 });
     const controls = await reader.decodeFromStream(stream, video, async result => {
       if (!result || done) return;
-      setScannerStatus(tr('intake.codeFound'));
-      const accepted = await processQrToken(result.getText(), { fromScanner:true });
-      if (accepted) { done = true; stopInlineScanner(); }
-      else { setScannerStatus(tr('intake.scanRetry'), true); }
+      await handleScanToken(result.getText());
     });
-    inlineScannerCleanup = () => { done = true; controls.stop(); stream.getTracks().forEach(track => track.stop()); };
+    inlineScannerCleanup = () => { done = true; controls.stop(); finish(); };
+    scheduleScanHint(hint);
   } catch (error) { console.warn(error); setScannerStatus(tr('intake.noQrFound'), true); stopInlineScanner(); }
 }
 
 async function scanQrImage(file) {
   if (!file) return;
-  const { BrowserQRCodeReader } = await import('@zxing/browser');
   const url = URL.createObjectURL(file);
   try {
-    const { DecodeHintType } = await import('@zxing/browser');
+    if ('BarcodeDetector' in window && 'createImageBitmap' in window) {
+      const bitmap = await window.createImageBitmap(file);
+      const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+      const codes = await detector.detect(bitmap);
+      bitmap.close?.();
+      const token = codes?.[0]?.rawValue;
+      if (token) { await processQrToken(token); return; }
+    }
+    const { BrowserQRCodeReader, DecodeHintType } = await import('@zxing/browser');
     const result = await new BrowserQRCodeReader(new Map([[DecodeHintType.TRY_HARDER, true]])).decodeFromImageUrl(url);
     await processQrToken(result.getText());
   } catch (error) { console.warn(error); toast(tr('error.title'), tr('intake.noQrFound'), 'warning'); }
@@ -1832,8 +2102,10 @@ app.addEventListener('click', async event => {
   if (role) { state.role=role; state.view=roleConfig[role].landing; state.roleMenu=false; storage.setItem('raktflow-role',role); render(); return; }
   if (action === 'open-signin') return authModal('signin');
   if (action === 'open-register' || action === 'campaign-register') return authModal('register');
+  if (action === 'reconnect-now') { prewarmApi(); state.reconnectStage = 'slow'; state.reconnect = true; render(); startReconnectLoop(state.sessionCache?.userUid, 0); return; }
+  if (action === 'open-hospital-apply') return openHospitalApply();
   if (action === 'retry-bootstrap') return state.authUser ? bootstrapSession(state.authUser) : authModal('signin');
-  if (action === 'sign-out') { closeModal(); await signOutUser(); state.account=null; state.profile=null; state.screen='landing'; state.authError=''; render(); return; }
+  if (action === 'sign-out') { closeModal(); await signOutUser(); clearSession(); state.sessionCache=null; state.reconnect=false; state.account=null; state.profile=null; state.screen='landing'; state.authError=''; render(); return; }
   if (action === 'toggle-mobile-menu') { state.mobileMenu=!state.mobileMenu; render(); return; }
   if (action === 'toggle-role-menu') { state.roleMenu=!state.roleMenu; render(); return; }
   if (action === 'toggle-theme') {
@@ -1919,7 +2191,7 @@ modalRoot.addEventListener('click', async event => {
   if (action === 'show-signin') return authModal('signin');
   if (action === 'show-register') return authModal('register');
   if (action === 'google-signin') { try { state.screen='loading';state.loadingKey='loading.signingIn';closeModal();render();await signInWithGoogle(); } catch(error){state.screen='landing';render();toast('Google sign-in failed',authErrorMessage(error),'warning');} return; }
-  if (action === 'sign-out') { closeModal(); await signOutUser(); state.screen='landing';state.account=null;render();return; }
+  if (action === 'sign-out') { closeModal(); await signOutUser(); clearSession(); state.sessionCache=null; state.reconnect=false; state.screen='landing';state.account=null;render();return; }
   if (action === 'open-profile') { closeModal(); return profileModal(); }
   if (action === 'apply-hospital') { closeModal(); return hospitalApplicationModal(); }
   if (action === 'upload-hospital-evidence') return hospitalEvidenceModal(target.dataset.hospitalId);
@@ -1980,14 +2252,39 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden) prewarmApi();
 });
 
+/**
+ * Restore the last signed-in workspace from the local cache so a refresh is
+ * seamless: the app shell appears instantly (with a reconnect pill) while the
+ * live session is re-validated in the background.
+ */
+function tryRestoreCachedSession() {
+  const cached = loadSession();
+  if (!cached?.account || !cached?.userUid) return;
+  if (Date.now() - (cached.savedAt || 0) > 1000 * 60 * 60 * 24 * 14) return; // stale
+  state.sessionCache = cached;
+  state.account = cached.account;
+  state.profile = cached.profile || null;
+  if (cached.role && roleConfig[cached.role]) state.role = cached.role;
+  if (cached.view && roleConfig[state.role]?.nav?.some(([id]) => id === cached.view)) {
+    state.view = cached.view;
+  }
+  state.reconnect = true;
+  state.reconnectStage = 'restoring';
+  state.screen = 'app';
+}
+
 (async function initialize() {
   state.locale = await loadLocale(state.locale);
   setLocale(state.locale);
+  tryRestoreCachedSession();
   render();
   prewarmApi();
   await loadPublicData();
   render();
-  if (!isAuthConfigured()) return;
+  if (!isAuthConfigured()) {
+    if (!state.sessionCache) { state.screen = 'landing'; render(); }
+    return;
+  }
   try { await completeGoogleRedirect(); }
   catch (error) {
     state.screen = 'landing'; render();
@@ -1998,14 +2295,29 @@ document.addEventListener('visibilitychange', () => {
     catch (error) { console.warn(error); }
   }
   let bootstrappingUid = null;
+  let ranNullRecovery = false;
   observeAuth(async user => {
     if (!user) {
+      // Firebase emits a transient null while it restores the persisted
+      // session from IndexedDB. Never treat that as a logout: poll for the
+      // restored user, and if the API is still asleep, keep the cached app
+      // shell visible (no forced re-login on a refresh).
       bootstrappingUid = null;
-      if (state.screen !== 'landing') { state.screen='landing';state.account=null;state.authUser=null;render(); }
+      if (ranNullRecovery) return;
+      ranNullRecovery = true;
+      for (let i = 0; i < 10; i += 1) {
+        await new Promise(resolve => setTimeout(resolve, 700));
+        const restored = getRaktFlowAuth().currentUser;
+        if (restored) { ranNullRecovery = false; await bootstrapSession(restored); return; }
+        if (state.reconnect) break; // cached app already visible; no forced logout
+      }
+      if (!enableReconnectMode() && state.screen !== 'landing') {
+        state.screen = 'landing'; state.account = null; state.authUser = null; render();
+      }
       return;
     }
-    if (!user.emailVerified) { state.screen='landing';state.authUser=null;render();return; }
-    if (bootstrappingUid === user.uid && state.account) return;
+    if (!user.emailVerified) { state.screen = 'landing'; state.authUser = null; render(); return; }
+    if (bootstrappingUid === user.uid && state.account && !state.reconnect) return;
     bootstrappingUid = user.uid;
     await bootstrapSession(user);
   });

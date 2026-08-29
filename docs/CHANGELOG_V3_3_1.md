@@ -336,3 +336,53 @@ Fix:
 - Validated on real PostgreSQL 16: fresh chain (001-007) and live-shaped DB
   (NOT NULL table pre-existing, 003/005 failing) both insert the exact
   auto-assigned row (NULL, NULL) successfully.
+
+## V3.4.0 (Hotfix 12): UI refresh + the five reported problems
+
+User feedback this release:
+1. QR scanning: camera decode now uses the native BarcodeDetector first
+   (iPadOS 17+/Safari 17, Android Chrome) with ZXing as the fallback; camera
+   requested at 1280x720; if nothing decodes after ~14s the status shows a
+   hint to use "Scan photo" instead. The manual RF-XXXXXX path is unchanged.
+2. Misplaced icons/toasts: the role-switcher dropdown (role-menu/role-option)
+   had NO CSS at all, plus toast markup was unstyled in places. Both are now
+   fully styled and aligned; icons are baseline-aligned everywhere; toasts
+   are top-right, deduplicated (identical messages never stack), max 3,
+   closable, with a proper entrance/exit animation.
+3. Hospital option unreachable: the full "apply as hospital/blood bank"
+   flow already existed (POST /hospitals/applications + evidence + Super
+   Admin verification) but had no visible entry point for donor accounts.
+   Added: landing-page "For hospitals" section, donor-home strip, settings
+   account card button, and an open-hospital-apply action that signs the
+   user in first when needed.
+4. Landing page (rakt.in-inspired): live stats band with animated counters
+   (verified needs, drives, donations, registered donors, verified
+   facilities - backend now also returns registered_donors and
+   verified_hospitals), third hero glow, gradient hospital CTA section,
+   Apple system font stack (already the base) with tighter display type.
+5. Refresh no longer logs you out: new session-cache module persists the
+   signed-in workspace (roles/profile/settings only - never tokens); on
+   reload the app shell renders instantly from cache with a "Reconnecting"
+   pill while Firebase + bootstrap revalidate in the background (polling
+   currentUser through the transient null-on-cold-start event). A waking
+   backend no longer ejects a signed-in user to the login screen; sign-out
+   clears the cache.
+
+Also: BUILD_TAG -> v3.4.0-h12.
+
+V3.4.0 (final, h12): rakt.in-inspired refinements on top of the fixes above.
+- Greeting header on donor/organizer/hospital/admin overviews: time-of-day
+  greeting + first name + today's date (reference: "Good morning, Dr. Sharma").
+- Donor home: numbered 3-step journey stepper (profile - pre-check - QR pass)
+  with done/current/upcoming states (reference: component-preparation stepper).
+- Hospital inventory: "Stock by blood group" horizontal bars from live
+  component data (reference: Blood Inventory).
+- Hospital overview: real "Action items" list - expiring units, pending
+  clinical reviews, open requests - with High/Medium dot priority pills
+  (reference: dashboard Action items). Numbers come from loaded state only.
+- Sidebar grouped into Home / Workspace / Account with section labels
+  (reference: RAKT sidebar).
+- Gentle entrance motion on cards/headers; dark-theme variants for all new
+  components.
+- NOT implemented (would be fake without real sources): RAKT-AI chat, ABHA
+  /eRaktKosh integration, Reports & Registers with counts, billing.

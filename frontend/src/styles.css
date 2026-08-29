@@ -569,11 +569,16 @@ svg { display: block; }
 .danger-action span { display: block; margin-top: 4px; color: rgb(255 255 255 / .75); font-size: 10px; }
 .danger-action .icon-lg:last-child { margin-left: auto; }
 
-.toast-region { position: fixed; z-index: 200; right: 18px; bottom: 18px; display: grid; gap: 8px; pointer-events: none; }
-.toast { width: min(360px, calc(100vw - 36px)); display: flex; align-items: flex-start; gap: 10px; padding: 12px 13px; border: 1px solid var(--border); border-radius: 12px; color: var(--text); background: var(--surface-raised); box-shadow: var(--shadow-lg); animation: toast-in .25s ease-out; }
-.toast-icon { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 9px; color: #047857; background: var(--emerald-50); }
-.toast strong { display: block; font-size: 11px; }
-.toast span { display: block; margin-top: 2px; color: var(--muted); font-size: 9px; }
+.toast-region { position: fixed; z-index: 500; top: 16px; right: 16px; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; pointer-events: none; max-width: min(400px, calc(100vw - 32px)); }
+.toast { width: min(380px, calc(100vw - 32px)); display: flex; align-items: flex-start; gap: 12px; padding: 13px 12px 13px 14px; border: 1px solid var(--border); border-radius: 14px; color: var(--text); background: var(--surface-raised); box-shadow: 0 18px 40px -18px rgb(15 23 42 / .45), 0 3px 10px rgb(15 23 42 / .08); animation: toast-in .28s cubic-bezier(.21,1.02,.55,1); pointer-events: auto; }
+.toast-icon { width: 34px; height: 34px; flex: 0 0 34px; display: grid; place-items: center; border-radius: 10px; color: #047857; background: var(--emerald-50); }
+.toast-warning .toast-icon { color: #b45309; background: var(--amber-50); }
+.toast-body { min-width: 0; flex: 1; }
+.toast-body strong { display: block; font-size: 12.5px; line-height: 1.35; color: var(--text); }
+.toast-message { display: block; margin-top: 3px; color: var(--muted); font-size: 11.5px; line-height: 1.45; overflow-wrap: anywhere; }
+.toast-close { flex: 0 0 auto; width: 26px; height: 26px; display: grid; place-items: center; border: 0; border-radius: 8px; color: var(--muted); background: transparent; cursor: pointer; }
+.toast-close:hover { background: var(--surface-soft); color: var(--text); }
+.toast-leaving { pointer-events: none; }
 
 .empty-state { padding: 35px 20px; text-align: center; }
 .empty-icon { width: 50px; height: 50px; display: grid; place-items: center; margin: auto auto 10px; border-radius: 15px; color: var(--rose-600); background: var(--rose-50); }
@@ -681,7 +686,8 @@ svg { display: block; }
   .bottom-nav-item.active { color: var(--rose-600); background: var(--rose-50); }
   [data-theme='dark'] .bottom-nav-item.active { background: rgb(225 29 72 / .1); }
   .desktop-only { display: none !important; }
-  .toast-region { right: 12px; bottom: 80px; }
+  .toast-region { top: 12px; right: 12px; left: 12px; align-items: stretch; max-width: none; }
+  .toast { width: 100%; }
 }
 
 /* Public landing and authenticated onboarding */
@@ -794,3 +800,199 @@ svg { display: block; }
 .drive-metrics { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 10px; }
 .drive-metrics span { padding: 4px 9px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); color: var(--muted); font-size: 9px; font-weight: 700; }
 .map-note { margin-top: 10px; font-size: 10px; }
+
+/* ============================================================
+   V3.4 UI refresh — alignment, role menu, reconnect, landing
+   ============================================================ */
+
+/* Icon baseline: no icon may shift off its label or container. */
+.icon { display: inline-block; vertical-align: -0.18em; }
+button .icon, a .icon, label .icon { vertical-align: middle; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.btn .icon, .nav-item .icon, .bottom-nav-item .icon, .role-button .icon,
+.account-button .icon, .icon-btn .icon { vertical-align: middle; }
+
+/* Role switcher dropdown (previously unstyled -> misaligned icons) */
+.role-switcher { position: relative; }
+.role-menu {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 60;
+  min-width: 224px; padding: 6px; border: 1px solid var(--border);
+  border-radius: 14px; background: var(--surface-raised);
+  box-shadow: 0 18px 44px -18px rgb(15 23 42 / .45), 0 4px 12px rgb(15 23 42 / .08);
+  display: grid; gap: 2px; animation: pop .16s ease-out;
+}
+.role-option {
+  width: 100%; display: flex; align-items: center; gap: 11px;
+  padding: 10px 11px; border: 0; border-radius: 11px; background: transparent;
+  color: var(--text); text-align: left; cursor: pointer;
+}
+.role-option:hover { background: var(--surface-soft); }
+.role-option-icon {
+  width: 34px; height: 34px; flex: 0 0 34px; display: grid; place-items: center;
+  border-radius: 10px; color: var(--rose-600); background: var(--rose-50);
+}
+[data-theme='dark'] .role-option-icon { background: rgb(225 29 72 / .12); }
+.role-option strong { font-size: 12.5px; line-height: 1.3; }
+.role-option > span:last-child { min-width: 0; }
+
+/* Reconnect pill (cached session while the API wakes) */
+.reconnect-pill {
+  display: flex; align-items: center; gap: 9px; margin: 12px 22px 0;
+  padding: 8px 12px; border: 1px solid #fecdd3; border-radius: 12px;
+  color: #9f1239; background: #fff1f2; font-size: 11.5px; font-weight: 650;
+}
+[data-theme='dark'] .reconnect-pill { border-color: rgb(225 29 72 / .35); color: #fda4af; background: rgb(225 29 72 / .08); }
+.reconnect-pill .icon { animation: reconnect-spin 1.6s linear infinite; }
+.reconnect-pill span { flex: 1; min-width: 0; }
+.reconnect-pill.offline { color: #92400e; border-color: #fde68a; background: #fffbeb; }
+[data-theme='dark'] .reconnect-pill.offline { color: #fcd34d; border-color: rgb(245 158 11 / .35); background: rgb(245 158 11 / .08); }
+@keyframes reconnect-spin { to { transform: rotate(360deg); } }
+
+/* Donor home: hospital/application strip */
+.hospital-apply-strip {
+  display: flex; align-items: center; gap: 13px; margin-top: 16px;
+  padding: 14px 16px; border: 1px solid var(--border); border-radius: 16px;
+  background: linear-gradient(120deg, var(--rose-50), var(--surface) 62%);
+}
+[data-theme='dark'] .hospital-apply-strip { background: linear-gradient(120deg, rgb(225 29 72 / .08), var(--surface) 62%); }
+.hospital-apply-strip.verified { background: linear-gradient(120deg, var(--emerald-50), var(--surface) 62%); }
+.hospital-apply-strip .hospital-apply-mark {
+  width: 42px; height: 42px; flex: 0 0 42px; display: grid; place-items: center;
+  border-radius: 13px; color: var(--rose-600); background: white;
+  box-shadow: var(--shadow-sm); border: 1px solid var(--border);
+}
+.hospital-apply-strip .hospital-apply-mark.small { width: 34px; height: 34px; flex-basis: 34px; border-radius: 10px; }
+.hospital-apply-strip.verified .hospital-apply-mark { color: var(--emerald-600); }
+.hospital-apply-strip strong { display: block; font-size: 13px; }
+.hospital-apply-strip span { display: block; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.hospital-apply-strip > div { flex: 1; min-width: 0; }
+
+/* Landing: live stats band */
+.live-stats-band {
+  max-width: 1192px; margin: -46px auto 0; position: relative; z-index: 2;
+  padding: 22px 26px; border: 1px solid #e2e8f0; border-radius: 22px;
+  background: rgb(255 255 255 / .94); box-shadow: 0 30px 70px -40px rgb(15 23 42 / .35);
+  backdrop-filter: blur(12px);
+}
+.live-stats-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.live-stats-head .live-indicator { display: inline-flex; align-items: center; gap: 7px; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--emerald-600); }
+.live-indicator i { width: 7px; height: 7px; border-radius: 50%; background: var(--emerald-500); box-shadow: 0 0 0 4px rgb(16 185 129 / .15); animation: live-pulse 2s ease-in-out infinite; }
+@keyframes live-pulse { 50% { box-shadow: 0 0 0 7px rgb(16 185 129 / .06); } }
+.live-stats-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+.stat-cell { text-align: left; padding: 10px 12px; border-radius: 14px; background: #f8fafc; }
+.stat-caption { display: flex; align-items: center; gap: 6px; color: #64748b; font-size: 10px; font-weight: 750; letter-spacing: .02em; }
+.stat-caption .icon { color: var(--rose-600); }
+.stat-value { display: block; margin-top: 6px; font: 800 30px/1 var(--font-sans); letter-spacing: -.03em; color: var(--slate-900); font-variant-numeric: tabular-nums; }
+@media (max-width: 760px) {
+  .live-stats-band { margin-top: -24px; padding: 18px; border-radius: 18px; }
+  .live-stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .stat-value { font-size: 25px; }
+}
+
+/* Landing: hospital call-to-action section */
+.hospital-apply-section {
+  max-width: 1192px; margin: 96px auto 0; padding: 52px 56px;
+  display: grid; grid-template-columns: 1.25fr .75fr; gap: 46px; align-items: center;
+  border-radius: 28px; color: #fff; background:
+    radial-gradient(1100px 480px at 12% -10%, rgb(251 113 133 / .55), transparent 60%),
+    radial-gradient(900px 520px at 108% 118%, rgb(190 24 93 / .45), transparent 60%),
+    linear-gradient(135deg, #881337, #4c0519);
+  overflow: hidden; position: relative;
+}
+.hospital-apply-section::after { content: ''; position: absolute; inset: 0; background-image: radial-gradient(rgb(255 255 255 / .12) 1px, transparent 1px); background-size: 26px 26px; opacity: .5; pointer-events: none; }
+.hospital-apply-section > * { position: relative; z-index: 1; }
+.hospital-apply-section .section-kicker { color: #fecdd3; }
+.hospital-apply-copy h2 { margin: 10px 0 12px; font: 800 clamp(28px, 3.6vw, 44px)/1.06 var(--font-sans); letter-spacing: -.04em; }
+.hospital-apply-copy p { max-width: 540px; margin: 0; color: rgb(255 255 255 / .82); font-size: 15px; line-height: 1.7; }
+.hospital-benefits { list-style: none; margin: 22px 0 0; padding: 0; display: grid; gap: 10px; color: rgb(255 255 255 / .92); font-size: 13px; font-weight: 600; }
+.hospital-benefits li { display: flex; align-items: center; gap: 9px; }
+.hospital-benefits .icon { color: #fda4af; }
+.hospital-apply-card { padding: 26px; text-align: center; border: 1px solid rgb(255 255 255 / .16); background: rgb(255 255 255 / .08); backdrop-filter: blur(10px); }
+.hospital-apply-card h3 { margin: 14px 0 6px; font: 800 19px/1.25 var(--font-sans); letter-spacing: -.02em; }
+.hospital-apply-card p { margin: 0 0 16px; color: rgb(255 255 255 / .78); font-size: 12.5px; line-height: 1.55; }
+.hospital-apply-mark { width: 66px; height: 66px; margin: 0 auto; display: grid; place-items: center; border-radius: 20px; color: #fff; background: linear-gradient(135deg, var(--rose-500), #be123c); box-shadow: 0 18px 34px -14px rgb(244 63 94 / .7); }
+@media (max-width: 900px) {
+  .hospital-apply-section { grid-template-columns: 1fr; padding: 38px 26px; gap: 30px; }
+}
+
+/* Hero: third glow + stronger gradient wash */
+.hero-glow-three { width: 700px; height: 700px; left: 34%; top: -300px; background: radial-gradient(circle, rgb(244 63 94 / .09), transparent 66%); }
+
+/* Language picker alignment */
+.language-picker { display: inline-flex; align-items: center; gap: 6px; }
+.language-picker select { padding: 8px 10px; border: 1px solid var(--border); border-radius: 11px; background: var(--surface); color: var(--text); font: 12px/1 var(--font-sans); }
+
+/* ============================================================
+   V3.4 inspired rakt.in-style components (greeting, stepper,
+   stock bars, attention list, grouped sidebar, entrance motion)
+   ============================================================ */
+
+.greeting-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 18px;
+  margin-bottom: 20px; padding: 22px 26px; border: 1px solid var(--border);
+  border-radius: 20px; background:
+    radial-gradient(520px 200px at 0% 0%, rgb(244 63 94 / .08), transparent 60%),
+    linear-gradient(120deg, var(--surface), var(--surface-soft));
+  box-shadow: var(--shadow-sm);
+}
+.greeting-date { display: block; color: var(--muted); font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 5px; }
+.greeting-header h1 { margin: 0; font: 800 26px/1.15 var(--font-sans); letter-spacing: -.03em; color: var(--text); }
+.greeting-header p { margin: 5px 0 0; color: var(--muted); font-size: 12.5px; }
+.greeting-copy { min-width: 0; }
+
+/* Grouped sidebar (Home / Workspace / Account) */
+.nav-group { margin-bottom: 14px; }
+.nav-group-label { display: block; padding: 0 14px 7px; color: var(--muted); font-size: 9.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+
+/* Donor journey stepper (numbered, rakt.in style) */
+.journey-stepper { display: flex; align-items: flex-start; margin: 6px 0 18px; }
+.step { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.step-node {
+  width: 32px; height: 32px; flex: 0 0 32px; display: grid; place-items: center;
+  border-radius: 50%; border: 2px solid var(--border); background: var(--surface);
+  color: var(--muted); font: 800 12.5px/1 var(--font-sans); transition: all .2s ease;
+}
+.step.done .step-node { border-color: var(--emerald-500); color: #fff; background: var(--emerald-500); }
+.step.current .step-node { border-color: var(--rose-600); color: #fff; background: var(--rose-600); box-shadow: 0 0 0 5px rgb(225 29 72 / .12); }
+.step-copy { min-width: 0; padding-right: 6px; }
+.step-copy strong { display: block; font-size: 12.5px; line-height: 1.3; white-space: nowrap; }
+.step-copy small { display: block; color: var(--muted); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+.step-line { flex: 1; min-width: 14px; height: 2px; margin: 15px 8px 0; background: var(--border); border-radius: 2px; }
+@media (max-width: 720px) {
+  .step-copy small { max-width: 110px; }
+  .greeting-header { padding: 18px; flex-direction: column; align-items: flex-start; }
+  .greeting-header h1 { font-size: 22px; }
+}
+
+/* Stock by blood group (horizontal bars, rakt.in style) */
+.stock-bars { display: grid; gap: 9px; padding: 4px 0; }
+.stock-bar-row { display: grid; grid-template-columns: 44px 1fr 34px; align-items: center; gap: 12px; }
+.stock-bar-label { font: 800 12px/1 var(--font-sans); color: var(--text-soft); }
+.stock-bar-track { height: 14px; border-radius: 8px; background: var(--surface-soft); overflow: hidden; }
+.stock-bar-fill { display: block; height: 100%; border-radius: 8px; background: linear-gradient(90deg, var(--rose-600), #fb7185); transition: width .6s cubic-bezier(.22,1,.36,1); }
+.stock-bar-row strong { text-align: right; font: 800 12.5px/1 var(--font-sans); font-variant-numeric: tabular-nums; }
+
+/* Action items ("needs your attention") */
+.attention-list { display: grid; }
+.attention-row { display: grid; grid-template-columns: minmax(0,1fr) auto auto auto; align-items: center; gap: 12px; padding: 11px 4px; border-bottom: 1px solid var(--border); }
+.attention-row:last-child { border-bottom: 0; }
+.attention-row strong { font-size: 12.5px; font-weight: 650; }
+.attention-type { color: var(--muted); font-size: 11px; }
+.attention-row small { color: var(--muted); font-size: 10.5px; min-width: 34px; text-align: right; }
+@media (max-width: 640px) { .attention-row { grid-template-columns: 1fr auto; } .attention-type { display: none; } }
+
+/* Dot status pills (rakt.in "• Complete" style) */
+.dot-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 10px; font-weight: 750; }
+.dot-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.dot-rose { color: #be123c; background: #fff1f2; }
+.dot-amber { color: #b45309; background: #fffbeb; }
+.dot-green { color: #047857; background: #ecfdf5; }
+[data-theme='dark'] .dot-rose { color: #fda4af; background: rgb(225 29 72 / .1); }
+[data-theme='dark'] .dot-amber { color: #fcd34d; background: rgb(245 158 11 / .1); }
+[data-theme='dark'] .dot-green { color: #6ee7b7; background: rgb(16 185 129 / .1); }
+
+/* Gentle entrance motion for freshly rendered cards */
+.app-shell .card, .greeting-header, .journey-stepper, .live-stats-band, .hospital-apply-section { animation: fade .28s ease-out both; }
+
+/* Greeting header dark-theme polish */
+[data-theme='dark'] .greeting-header { background: radial-gradient(520px 200px at 0% 0%, rgb(244 63 94 / .12), transparent 60%), linear-gradient(120deg, var(--surface), var(--surface-soft)); }
