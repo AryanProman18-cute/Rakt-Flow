@@ -1141,4 +1141,10 @@ aside.sidebar {
   color: var(--text) !important;
 }
 
+/* Cleanly hide the sidebar section headers when collapsed */
+.sidebar .nav-label {
+  display: none !important;
+}
+
+
 
