@@ -1125,3 +1125,31 @@ button .icon, a .icon, label .icon { vertical-align: middle; }
   }
 }
 
+/* 1. Force the mobile bottom nav to stay hidden */
+.mobile-bottom-nav {
+  display: none !important;
+}
+
+/* 2. Fix Dropdown Alignment (Image 5) */
+.role-option {
+  align-items: center !important;
+}
+
+/* 3. Fix Sidebar Text Wrapping (Image 7) */
+.nav-item, .nav-label {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+}
+
+/* 4. Stop ALL Icons from Squishing (Images 6 & 8) */
+.icon, 
+.role-option-icon, 
+.activity-icon, 
+.metric-icon, 
+.dispatch-head-icon,
+.network-icon,
+.avatar,
+.map-detail-icon {
+  flex-shrink: 0 !important;
+}
+
