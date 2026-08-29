@@ -1080,110 +1080,65 @@ button .icon, a .icon, label .icon { vertical-align: middle; }
   .reveal { opacity: 1; transform: none; transition: none; }
   .hero-orb, .product-window, .scan-line { animation: none !important; }
 }
+
 /* =========================================
-   UI ALIGNMENT & LAYOUT FIXES
+   ABSOLUTE UI OVERRIDES
    ========================================= */
 
-/* FIX 1: Prevent all icons from shrinking when text wraps (Images 6 & 8) */
-.icon, 
-.role-option-icon, 
-.activity-icon, 
-.metric-icon, 
-.dispatch-head-icon,
-.network-icon {
-  flex-shrink: 0 !important;
-}
-
-/* FIX 2: Vertically center the Role Menu dropdown items (Image 5) */
-.role-option {
+/* 1. DROPDOWN ALIGNMENT (Image 9) 
+   Locks the icon as a perfect square and forces the text to center with it */
+button.role-option {
   display: flex !important;
   align-items: center !important;
 }
-
-/* FIX 3: Prevent Sidebar text from wrapping and breaking layout (Image 7) */
-.nav-item {
-  white-space: nowrap !important;
-  overflow: hidden !important;
+button.role-option .role-option-icon {
+  flex: 0 0 34px !important; 
+  height: 34px !important;
+  margin: 0 !important;
 }
-
-.nav-label {
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-}
-
-/* FIX 4: Ensure multi-line list items stay vertically centered */
-.activity-item, 
-.check-row {
-  align-items: center !important;
-}
-
-/* FIX 5: Remove the redundant mobile bottom navigation (From previous fix) */
-@media (max-width: 768px) {
-  .mobile-bottom-nav {
-    display: none !important;
-  }
-}
-
-/* 1. Force the mobile bottom nav to stay hidden */
-.mobile-bottom-nav {
-  display: none !important;
-}
-
-/* 2. Fix Dropdown Alignment (Image 5) */
-.role-option {
-  align-items: center !important;
-}
-
-/* 3. Fix Sidebar Text Wrapping (Image 7) */
-.nav-item, .nav-label {
-  white-space: nowrap !important;
-  overflow: hidden !important;
-}
-
-/* 4. Stop ALL Icons from Squishing (Images 6 & 8) */
-.icon, 
-.role-option-icon, 
-.activity-icon, 
-.metric-icon, 
-.dispatch-head-icon,
-.network-icon,
-.avatar,
-.map-detail-icon {
-  flex-shrink: 0 !important;
-}
-
-/* --- ICON CENTERING FIX --- */
-.role-option-icon, 
-.activity-icon, 
-.metric-icon, 
-.dispatch-head-icon, 
-.avatar, 
-.icon-btn,
-.pin-head {
+button.role-option > span:not(.role-option-icon) {
+  margin: 0 !important;
   display: flex !important;
-  align-items: center !important;
+  flex-direction: column !important;
   justify-content: center !important;
 }
 
-.role-option-icon svg, 
-.activity-icon svg, 
-.metric-icon svg, 
-.icon-btn svg,
-.pin-head svg {
-  margin: auto !important;
+/* 2. SQUISHED ICONS FIX (Images 6 & 8)
+   Completely disables flexbox's ability to crush icons into rectangles */
+.icon, 
+.activity-icon, 
+.metric-icon, 
+.avatar,
+.dispatch-head-icon,
+.network-icon,
+.pin-head {
+  flex-shrink: 0 !important;
+}
+/* Force minimum dimensions on the container boxes so they never warp */
+.activity-icon, .avatar, .metric-icon {
+  min-width: 34px !important; 
+  min-height: 34px !important;
 }
 
-/* --- DARK MODE GRADIENT FIX --- */
+/* 3. SIDEBAR TEXT BLEEDING (Image 7)
+   Clips the sidebar content so it cleanly hides instead of overlapping the main screen */
+aside.sidebar {
+  overflow-x: hidden !important;
+}
+.nav-item, .nav-label {
+  white-space: nowrap !important;
+}
+
+/* 4. DARK MODE GRADIENT FIX (From your previous message) 
+   Stops the dark gray and light pink from creating a muddy, washed-out background */
 [data-theme="dark"] .dispatch-panel {
   background: linear-gradient(145deg, var(--surface), color-mix(in srgb, var(--surface), var(--rose-600) 15%)) !important;
   border-color: var(--border) !important;
 }
-
-/* Catch-all for any other cards that kept their light background in dark mode */
 [data-theme="dark"] .card[style*="background"],
 [data-theme="dark"] div[style*="background: var(--surface-soft)"] {
   background: var(--surface-soft) !important;
   color: var(--text) !important;
 }
+
 
